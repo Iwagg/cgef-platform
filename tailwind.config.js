@@ -1,0 +1,65 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        'brand-green': {
+          50: '#E8F5E9',
+          100: '#C8E6C9',
+          200: '#A5D6A7',
+          300: '#81C784',
+          400: '#66BB6A',
+          500: '#2E7D32',
+          600: '#2E7D32',
+          700: '#1B5E20',
+          800: '#1B5E20',
+          900: '#0D3D0F',
+        },
+        'brand-blue': {
+          50: '#E3F2FD',
+          100: '#BBDEFB',
+          200: '#90CAF9',
+          300: '#64B5F6',
+          400: '#42A5F5',
+          500: '#1565C0',
+          600: '#1565C0',
+          700: '#0D47A1',
+          800: '#0D47A1',
+          900: '#072F6B',
+        },
+        'brand-slate': {
+          50: '#F8FAFC',
+          100: '#F1F5F9',
+          200: '#E2E8F0',
+          300: '#CBD5E1',
+          400: '#94A3B8',
+          500: '#64748B',
+          600: '#475569',
+          700: '#334155',
+          800: '#1E293B',
+          900: '#0F172A',
+        },
+        cgs: {
+          aaa: '#1565C0',
+          aa: '#2E7D32',
+          a: '#43A047',
+          bbb: '#FDD835',
+          bb: '#F57C00',
+          b: '#D32F2F',
+        },
+        maturity: {
+          1: '#D32F2F',
+          2: '#F57C00',
+          3: '#FDD835',
+          4: '#43A047',
+          5: '#1565C0',
+        },
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+};
