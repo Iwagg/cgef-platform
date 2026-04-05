@@ -1,0 +1,45 @@
+name: Setup CGEF Platform v2 Repo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create cgef-platform-v2 repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh repo create Iwagg/cgef-platform-v2 \
+            --public \
+            --description "CGEF Platform® v2.0 — Plateforme SaaS de gouvernance cybersécurité | 120 processus CGEF™ | Horizons Gov Advisors" \
+            || echo "Repo may already exist"
+          
+      - name: Clone this repo and push to v2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone https://x-access-token:$GH_TOKEN@github.com/Iwagg/cgef-platform.git source
+          cd source
+          git remote add v2 https://x-access-token:$GH_TOKEN@github.com/Iwagg/cgef-platform-v2.git
+          git push v2 main --force
+          git push v2 --tags
+          echo "✅ cgef-platform-v2 populated"
+          
+      - name: Add repo topics
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/Iwagg/cgef-platform-v2/topics \
+            -X PUT \
+            -f names[]="cybersecurity" \
+            -f names[]="governance" \
+            -f names[]="cgef" \
+            -f names[]="nis2" \
+            -f names[]="dora" \
+            -f names[]="iso27001" \
+            -f names[]="react" \
+            -f names[]="supabase" \
+            -f names[]="typescript" \
+            || echo "Topics update optional"
