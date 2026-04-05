@@ -1,2 +1,28 @@
+# Dependencies
 node_modules/
+
+# Build output — NE JAMAIS COMMITER dist/
+dist/
+dist-ssr/
+*.local
+
+# Environment variables — SECRETS
 .env
+.env.local
+.env.production
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo

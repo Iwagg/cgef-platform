@@ -12,16 +12,20 @@ export interface Organization {
   employee_count?: number;
   country?: string;
   nis2_entity_type?: string;
+  is_oiv?: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Profile {
   id: string;
   user_id: string;
-  organization_id: string;
+  organization_id?: string;
   full_name: string;
   role: UserRole;
+  mfa_enabled: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Assessment {
@@ -57,6 +61,7 @@ export interface AssessmentScore {
   pillar_scores: Record<PillarId, number>;
   equivalence_applies: boolean;
   computed_at: string;
+  algorithm_version?: string;
 }
 
 export interface ActionPlan {
@@ -70,6 +75,8 @@ export interface ActionPlan {
   status: ActionStatus;
   responsible?: string;
   due_date?: string;
+  estimated_cost?: number;
+  currency?: string;
   created_at: string;
   updated_at: string;
 }
@@ -107,4 +114,27 @@ export interface ScoreResult {
   pillarScores: Record<PillarId, number>;
   equivalenceApplies: boolean;
   completionRate: number;
+}
+
+export interface AuditLog {
+  id: string;
+  user_id?: string;
+  organization_id?: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface RegulatoryAlert {
+  id: string;
+  framework_id: string;
+  title: string;
+  description: string;
+  severity: 'high' | 'medium' | 'low';
+  deadline?: string;
+  source_url?: string;
+  created_at: string;
+  is_read: boolean;
 }

@@ -78,6 +78,7 @@ export function AssessmentDetail() {
     computed_at: new Date().toISOString(),
   };
 
+  if (!mockScore) return null;
   const radarData = PILLARS.map((pillar) => ({
     pillar: pillar.id,
     name: pillar.name.split(' ')[0],
