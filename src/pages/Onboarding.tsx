@@ -1,19 +1,19 @@
 import { useState } from 'react';
-import { Shield, Building2, Users, ArrowRight, CircleAlert as AlertCircle } from 'lucide-react';
+import { Shield, Building2, Users, ArrowRight, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
 
 const SECTORS = [
-  'Banque & Finance', 'Assurance', 'Santé', 'Énergie', 'Transport',
-  'Télécommunications', 'Industrie', 'Commerce & Distribution',
-  'Services', 'Secteur Public', 'Technologies', 'Autre',
+  'Finance & Banking', 'Insurance', 'Healthcare', 'Energy & Utilities',
+  'Transportation', 'Telecommunications', 'Manufacturing', 'Retail & Distribution',
+  'Professional Services', 'Public Sector', 'Technology', 'Other',
 ];
 
 const COUNTRIES = [
-  { code: 'FR', name: 'France' }, { code: 'DE', name: 'Allemagne' },
-  { code: 'IT', name: 'Italie' }, { code: 'ES', name: 'Espagne' },
-  { code: 'BE', name: 'Belgique' }, { code: 'NL', name: 'Pays-Bas' },
-  { code: 'LU', name: 'Luxembourg' }, { code: 'CH', name: 'Suisse' },
-  { code: 'GB', name: 'Royaume-Uni' }, { code: 'OTHER', name: 'Autre' },
+  { code: 'FR', name: 'France' }, { code: 'DE', name: 'Germany' },
+  { code: 'IT', name: 'Italy' }, { code: 'ES', name: 'Spain' },
+  { code: 'BE', name: 'Belgium' }, { code: 'NL', name: 'Netherlands' },
+  { code: 'LU', name: 'Luxembourg' }, { code: 'CH', name: 'Switzerland' },
+  { code: 'GB', name: 'United Kingdom' }, { code: 'OTHER', name: 'Other' },
 ];
 
 type Mode = 'choice' | 'create' | 'join';
@@ -22,89 +22,107 @@ export function Onboarding() {
   const { createOrganization, joinOrganization, loading } = useAuthStore();
   const [mode, setMode] = useState<Mode>('choice');
   const [error, setError] = useState<string | null>(null);
-
-  // Create form state
   const [orgName, setOrgName] = useState('');
   const [sector, setSector] = useState('');
   const [country, setCountry] = useState('FR');
-
-  // Join form state
   const [orgId, setOrgId] = useState('');
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    try {
-      await createOrganization(orgName, sector, country);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la création');
-    }
+    try { await createOrganization(orgName, sector, country); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : 'Failed to create organisation'); }
   };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    try {
-      await joinOrganization(orgId.trim());
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Organisation introuvable');
-    }
+    try { await joinOrganization(orgId.trim()); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : 'Organisation not found'); }
   };
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-slate-900 via-brand-slate-800 to-brand-green-900 p-12 flex-col justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className="w-10 h-10 text-brand-green-400" />
-          <span className="text-2xl font-bold text-white">CGEF Platform</span>
-        </div>
-        <div className="max-w-md">
-          <h1 className="text-4xl font-bold text-white mb-6">Bienvenue sur CGEF Platform®</h1>
-          <p className="text-brand-slate-300 text-lg">
-            Créez ou rejoignez votre organisation pour commencer à évaluer votre maturité cybersécurité.
+    <div className="min-h-screen bg-surface-950 flex">
+      <div className="hidden lg:flex flex-col justify-between w-[480px] flex-shrink-0 bg-surface-900 border-r border-white/8 p-10">
+        <div>
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-bold text-slate-100">CGEF Platform</span>
+          </div>
+          <h2 className="text-3xl font-bold text-slate-100 leading-tight mb-4">
+            Set up your workspace.<br />
+            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Ready in 2 minutes.</span>
+          </h2>
+          <p className="text-slate-400 text-sm leading-relaxed mb-8">
+            Create or join your organisation to start managing cyber maturity, compliance, and risk — all in one place.
           </p>
+          <div className="space-y-4">
+            {[
+              { step: '1', label: 'Create or join your organisation' },
+              { step: '2', label: 'Select your active compliance frameworks' },
+              { step: '3', label: 'Invite your team members' },
+              { step: '4', label: 'Launch your first assessment' },
+            ].map((s) => (
+              <div key={s.step} className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
+                  {s.step}
+                </div>
+                <span className="text-sm text-slate-300">{s.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-brand-slate-400 text-sm">Horizons Gov Advisors — CGEF Platform® v1.0</p>
+        <div className="bg-white/4 border border-white/8 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-medium text-emerald-400">Trusted by 200+ security teams</span>
+          </div>
+          <p className="text-xs text-slate-500">ISO 27001 · NIS2 · DORA · RGPD · NIST CSF · CIS Controls · SOC 2</p>
+        </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8 bg-brand-slate-50">
+      <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-bold text-slate-100">CGEF Platform</span>
+          </div>
+
           {mode === 'choice' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <h2 className="text-2xl font-bold text-brand-slate-900 mb-2">Configuration de votre espace</h2>
-              <p className="text-brand-slate-500 mb-8">
-                Pour utiliser CGEF Platform®, vous devez appartenir à une organisation.
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => setMode('create')}
-                  className="w-full p-5 border-2 border-brand-green-200 rounded-xl hover:border-brand-green-500 hover:bg-brand-green-50 transition-all text-left group"
-                >
+            <div>
+              <div className="mb-8">
+                <h1 className="text-2xl font-bold text-slate-100 mb-2">Welcome to CGEF Platform</h1>
+                <p className="text-sm text-slate-400">To get started, you need to belong to an organisation.</p>
+              </div>
+              <div className="space-y-3">
+                <button onClick={() => setMode('create')}
+                  className="w-full p-5 bg-surface-850 border border-white/8 rounded-xl hover:border-brand-500/40 hover:bg-brand-500/5 transition-all text-left group">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-green-100 rounded-xl flex items-center justify-center group-hover:bg-brand-green-200 transition-colors">
-                      <Building2 className="w-6 h-6 text-brand-green-600" />
+                    <div className="w-10 h-10 bg-brand-500/15 rounded-lg flex items-center justify-center group-hover:bg-brand-500/25 transition-colors">
+                      <Building2 className="w-5 h-5 text-brand-400" />
                     </div>
-                    <div>
-                      <p className="font-semibold text-brand-slate-900">Créer une organisation</p>
-                      <p className="text-sm text-brand-slate-500">Vous êtes RSSI, DSI ou Admin — créez votre espace</p>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-200 text-sm">Create an organisation</p>
+                      <p className="text-xs text-slate-500 mt-0.5">You are a CISO, CTO, or admin — set up your workspace</p>
                     </div>
-                    <ArrowRight className="w-5 h-5 text-brand-slate-300 group-hover:text-brand-green-500 ml-auto transition-colors" />
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-brand-400 transition-colors" />
                   </div>
                 </button>
-
-                <button
-                  onClick={() => setMode('join')}
-                  className="w-full p-5 border-2 border-brand-blue-200 rounded-xl hover:border-brand-blue-500 hover:bg-brand-blue-50 transition-all text-left group"
-                >
+                <button onClick={() => setMode('join')}
+                  className="w-full p-5 bg-surface-850 border border-white/8 rounded-xl hover:border-white/20 hover:bg-white/3 transition-all text-left group">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-blue-100 rounded-xl flex items-center justify-center group-hover:bg-brand-blue-200 transition-colors">
-                      <Users className="w-6 h-6 text-brand-blue-600" />
+                    <div className="w-10 h-10 bg-slate-500/15 rounded-lg flex items-center justify-center group-hover:bg-slate-500/25 transition-colors">
+                      <Users className="w-5 h-5 text-slate-400" />
                     </div>
-                    <div>
-                      <p className="font-semibold text-brand-slate-900">Rejoindre une organisation</p>
-                      <p className="text-sm text-brand-slate-500">Votre admin vous a fourni un identifiant d'organisation</p>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-200 text-sm">Join an organisation</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Your admin provided you with an organisation ID</p>
                     </div>
-                    <ArrowRight className="w-5 h-5 text-brand-slate-300 group-hover:text-brand-blue-500 ml-auto transition-colors" />
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
                   </div>
                 </button>
               </div>
@@ -112,72 +130,68 @@ export function Onboarding() {
           )}
 
           {mode === 'create' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <button onClick={() => setMode('choice')} className="text-brand-slate-400 hover:text-brand-slate-600 text-sm mb-6 flex items-center gap-1">
-                ← Retour
+            <div>
+              <button onClick={() => setMode('choice')} className="text-slate-500 hover:text-slate-300 text-sm mb-6 flex items-center gap-1 transition-colors">
+                ← Back
               </button>
-              <h2 className="text-2xl font-bold text-brand-slate-900 mb-2">Créer votre organisation</h2>
-              <p className="text-brand-slate-500 mb-6">Vous serez automatiquement administrateur.</p>
-
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold text-slate-100 mb-2">Create your organisation</h1>
+                <p className="text-sm text-slate-400">You will be automatically assigned as administrator.</p>
+              </div>
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                  <span className="text-red-700 text-sm">{error}</span>
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-5 text-sm text-red-400">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
                 </div>
               )}
-
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="label">Nom de l&apos;organisation *</label>
-                  <input className="input" type="text" value={orgName} onChange={e => setOrgName(e.target.value)}
-                    placeholder="Ex : Acme Corporation" required />
+                  <label className="label">Organisation name</label>
+                  <input className="input" type="text" value={orgName} onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="e.g. Acme Corporation" required />
                 </div>
                 <div>
-                  <label className="label">Secteur d&apos;activité *</label>
-                  <select className="input" value={sector} onChange={e => setSector(e.target.value)} required>
-                    <option value="">Sélectionner un secteur</option>
-                    {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                  <label className="label">Industry sector</label>
+                  <select className="select" value={sector} onChange={(e) => setSector(e.target.value)} required>
+                    <option value="">Select a sector</option>
+                    {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Pays *</label>
-                  <select className="input" value={country} onChange={e => setCountry(e.target.value)} required>
-                    {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  <label className="label">Country</label>
+                  <select className="select" value={country} onChange={(e) => setCountry(e.target.value)} required>
+                    {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 </div>
-                <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-                  {loading ? 'Création...' : 'Créer l\'organisation'}
+                <button type="submit" disabled={loading} className="btn btn-primary w-full gap-2 mt-2">
+                  {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Create organisation <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
             </div>
           )}
 
           {mode === 'join' && (
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <button onClick={() => setMode('choice')} className="text-brand-slate-400 hover:text-brand-slate-600 text-sm mb-6 flex items-center gap-1">
-                ← Retour
+            <div>
+              <button onClick={() => setMode('choice')} className="text-slate-500 hover:text-slate-300 text-sm mb-6 flex items-center gap-1 transition-colors">
+                ← Back
               </button>
-              <h2 className="text-2xl font-bold text-brand-slate-900 mb-2">Rejoindre une organisation</h2>
-              <p className="text-brand-slate-500 mb-6">Demandez l&apos;identifiant à votre administrateur CGEF.</p>
-
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold text-slate-100 mb-2">Join an organisation</h1>
+                <p className="text-sm text-slate-400">Request the organisation ID from your CGEF administrator.</p>
+              </div>
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                  <span className="text-red-700 text-sm">{error}</span>
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-5 text-sm text-red-400">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
                 </div>
               )}
-
               <form onSubmit={handleJoin} className="space-y-4">
                 <div>
-                  <label className="label">Identifiant de l&apos;organisation *</label>
-                  <input className="input" type="text" value={orgId} onChange={e => setOrgId(e.target.value)}
+                  <label className="label">Organisation ID</label>
+                  <input className="input font-mono text-sm" type="text" value={orgId} onChange={(e) => setOrgId(e.target.value)}
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required />
-                  <p className="text-xs text-brand-slate-400 mt-1">
-                    Format UUID, fourni par votre administrateur
-                  </p>
+                  <p className="text-xs text-slate-500 mt-1.5">UUID format — provided by your administrator</p>
                 </div>
-                <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-                  {loading ? 'Vérification...' : 'Rejoindre l\'organisation'}
+                <button type="submit" disabled={loading} className="btn btn-primary w-full gap-2 mt-2">
+                  {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Join organisation <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </form>
             </div>

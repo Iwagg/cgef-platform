@@ -32,12 +32,13 @@ export interface Assessment {
   id: string;
   organization_id: string;
   name: string;
-  description?: string;
+  scope?: string;
   status: AssessmentStatus;
-  framework_scope: string[];
+  frameworks_in_scope: string[];
   created_by: string;
   created_at: string;
   updated_at: string;
+  started_at?: string;
   completed_at?: string;
 }
 
@@ -45,11 +46,13 @@ export interface AssessmentResponse {
   id: string;
   assessment_id: string;
   process_id: string;
+  pillar_id: PillarId;
   maturity_level: number;
   evidence?: string;
   notes?: string;
-  evaluated_by: string;
-  evaluated_at: string;
+  answered_by: string;
+  answered_at: string;
+  updated_at?: string;
 }
 
 export interface AssessmentScore {
@@ -61,22 +64,20 @@ export interface AssessmentScore {
   pillar_scores: Record<PillarId, number>;
   equivalence_applies: boolean;
   computed_at: string;
-  algorithm_version?: string;
 }
 
 export interface ActionPlan {
   id: string;
-  organization_id: string;
-  assessment_id?: string;
-  process_id?: string;
+  assessment_id: string;
+  target_pillar?: string;
+  target_process?: string;
   title: string;
   description?: string;
   priority: ActionPriority;
   status: ActionStatus;
-  responsible?: string;
+  owner_id?: string;
   due_date?: string;
-  estimated_cost?: number;
-  currency?: string;
+  estimated_effort?: string;
   created_at: string;
   updated_at: string;
 }

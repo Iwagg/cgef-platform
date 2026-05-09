@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Shield, TriangleAlert as AlertTriangle, SquareCheck as CheckSquare, BookOpen, FileText, Zap, Server, Map, ChartBar as BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, Building2, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, Shield, TriangleAlert as AlertTriangle, SquareCheck as CheckSquare, BookOpen, FileText, Zap, Server, Map, ChartBar as BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, Building2, FlaskConical, Bell } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 
 const navigation = [
@@ -17,6 +17,7 @@ const navigation = [
     { label: 'Compliance Center', icon: BookOpen, href: '/compliance' },
     { label: 'Audit & Evidence', icon: FlaskConical, href: '/audit' },
     { label: 'Policies & Docs', icon: FileText, href: '/policies' },
+    { label: 'Regulatory Intel', icon: Bell, href: '/regulatory-intel' },
   ]},
   { group: 'Assets', items: [
     { label: 'Assets & Third Parties', icon: Server, href: '/assets' },
