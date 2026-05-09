@@ -1,347 +1,257 @@
-import { useEffect, useState, useCallback } from 'react';
-import { FileText, Download, Clock, CheckCircle2, Loader2, TrendingUp, Shield, Target, BarChart3 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/auth';
-import { PILLARS, FRAMEWORKS } from '../lib/cgef-framework';
-import { getCGSTierColor, getCGSTierLabel } from '../lib/scoring';
-import type { Assessment, AssessmentScore } from '../lib/types';
+import { useState } from 'react';
+import { ChartBar as BarChart3, FileText, Download, Calendar, Eye, Shield, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, TrendingUp } from 'lucide-react';
+import { mockComplianceFrameworks, mockRisks } from '../lib/mock-data';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
+import { toast } from '../components/ui/Toast';
 
-interface ReportData {
-  assessment: Assessment;
-  score: AssessmentScore;
+const reportTemplates = [
+  {
+    id: 'executive',
+    title: 'Executive Summary',
+    description: 'Board-level cyber governance overview with maturity score, key risks, and strategic recommendations.',
+    icon: BarChart3,
+    color: 'text-brand-400',
+    bg: 'bg-brand-500/15',
+    lastGenerated: '2026-05-08',
+    pages: 4,
+    frameworks: ['All'],
+    audience: 'Board / COMEX',
+  },
+  {
+    id: 'compliance',
+    title: 'Compliance Status Report',
+    description: 'Multi-framework compliance readiness with gap analysis, control coverage, and remediation roadmap.',
+    icon: CheckCircle,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/15',
+    lastGenerated: '2026-05-06',
+    pages: 12,
+    frameworks: ['ISO 27001', 'NIS2', 'DORA', 'RGPD'],
+    audience: 'CISO / DPO / Auditor',
+  },
+  {
+    id: 'risk',
+    title: 'Risk Register Report',
+    description: 'Complete risk inventory with heatmap, treatment plans, residual scores, and trend analysis.',
+    icon: AlertTriangle,
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/15',
+    lastGenerated: '2026-05-05',
+    pages: 8,
+    frameworks: ['ISO 27001', 'NIST CSF'],
+    audience: 'Risk Manager / CISO',
+  },
+  {
+    id: 'audit',
+    title: 'Audit Evidence Package',
+    description: 'Structured evidence collection for external auditors with control mapping and acceptance status.',
+    icon: FileText,
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-500/15',
+    lastGenerated: '2026-04-30',
+    pages: 22,
+    frameworks: ['ISO 27001', 'SOC 2'],
+    audience: 'External Auditor',
+  },
+  {
+    id: 'action',
+    title: 'Action Plan Status',
+    description: 'Remediation progress, overdue actions, and resource allocation for active security initiatives.',
+    icon: TrendingUp,
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/15',
+    lastGenerated: '2026-05-07',
+    pages: 6,
+    frameworks: ['All'],
+    audience: 'Project Manager / CISO',
+  },
+  {
+    id: 'vendor',
+    title: 'Third-Party Risk Report',
+    description: 'Vendor risk scoring, due diligence status, DPA tracking, and critical third-party exposures.',
+    icon: Shield,
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/15',
+    lastGenerated: '2026-04-25',
+    pages: 9,
+    frameworks: ['DORA', 'ISO 27001'],
+    audience: 'Procurement / Legal',
+  },
+];
+
+function ReportPreview({ id, onClose }: { id: string; onClose: () => void }) {
+  const report = reportTemplates.find((r) => r.id === id);
+  if (!report) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-white/8">
+          <div>
+            <h2 className="text-base font-semibold text-slate-100">{report.title}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Preview — Nexus Finance Group · May 2026</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-primary btn-sm" onClick={() => { toast({ type: 'success', title: 'Report exported', message: 'PDF downloaded successfully' }); onClose(); }}>
+              <Download className="w-3.5 h-3.5" /> Export PDF
+            </button>
+            <button onClick={onClose} className="btn-ghost btn-icon">×</button>
+          </div>
+        </div>
+        <div className="p-6">
+          {/* Report header */}
+          <div className="mb-6 pb-4 border-b border-white/8">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-5 h-5 rounded bg-brand-500 flex items-center justify-center"><Shield className="w-3 h-3 text-white" /></div>
+                  <span className="text-xs font-bold text-brand-400 uppercase tracking-widest">CGEF Platform</span>
+                </div>
+                <h1 className="text-xl font-bold text-slate-100">{report.title}</h1>
+              </div>
+              <div className="text-right text-xs text-slate-400">
+                <p className="font-medium text-slate-200">Nexus Finance Group</p>
+                <p>Generated: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                <p>Audience: {report.audience}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Executive Summary section */}
+          <div className="mb-5">
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-3">1. Executive Summary</h2>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[
+                { label: 'Cyber Maturity Score', value: '3.2 / 5.0', color: 'text-brand-400' },
+                { label: 'Overall Compliance', value: '68%', color: 'text-emerald-400' },
+                { label: 'Critical Risks Open', value: '7', color: 'text-red-400' },
+                { label: 'Audit Readiness', value: '61%', color: 'text-cyan-400' },
+              ].map((m) => (
+                <div key={m.label} className="bg-white/4 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-0.5">{m.label}</p>
+                  <p className={`text-lg font-bold ${m.color}`}>{m.value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              This report presents the cyber security posture of Nexus Finance Group as of May 2026.
+              The organization has made measurable progress in its maturity journey, with an overall score of 3.2/5 representing a Defined maturity level.
+              Key regulatory deadlines in 2026 require focused attention on NIS2 (October 17) and DORA (January 17, 2027) compliance programs.
+            </p>
+          </div>
+
+          {/* Compliance section */}
+          <div className="mb-5">
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-3">2. Compliance Readiness</h2>
+            <div className="space-y-2">
+              {mockComplianceFrameworks.slice(0, 4).map((f) => (
+                <div key={f.id} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-24">{f.name}</span>
+                  <div className="flex-1 h-2 bg-white/8 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${f.percentage}%` }} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-200 w-12 text-right">{f.percentage}%</span>
+                  <span className="text-xs text-slate-500 w-24">{f.certificationStatus}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Risk section */}
+          <div className="mb-5">
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-3">3. Top Risks</h2>
+            <div className="space-y-1.5">
+              {mockRisks.slice(0, 4).map((r) => (
+                <div key={r.id} className="flex items-center gap-3 text-xs">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.severity === 'critical' ? 'bg-red-500/20 text-red-300' : r.severity === 'high' ? 'bg-orange-500/20 text-orange-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                    {r.severity.toUpperCase()}
+                  </span>
+                  <span className="text-slate-300 flex-1">{r.title}</span>
+                  <span className="text-slate-500">Residual: {r.residualScore}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recommendations */}
+          <div>
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-3">4. Board Recommendations</h2>
+            <ul className="space-y-2">
+              {[
+                'Approve €380K DORA ICT Resilience program — deadline January 17, 2027',
+                'Accelerate PAM deployment (budget: €85K, completion: Q3 2026)',
+                'Initiate NIS2 supply chain security controls ahead of October 2026 deadline',
+                'Conduct quarterly risk committee review for critical risks R-001 and R-002',
+              ].map((rec, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                  <span className="text-brand-400 font-bold flex-shrink-0">{i + 1}.</span>{rec}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Reporting() {
-  const { organization } = useAuthStore();
-  const [reports, setReports] = useState<ReportData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
-  const fetchReports = useCallback(async () => {
-    if (!organization?.id) { setLoading(false); return; }
-    try {
-      const { data: assessments } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('organization_id', organization.id)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false });
-
-      if (!assessments?.length) { setLoading(false); return; }
-
-      const scores = await Promise.all(
-        assessments.map(a =>
-          supabase.from('assessment_scores')
-            .select('*').eq('assessment_id', a.id)
-            .order('computed_at', { ascending: false }).limit(1).maybeSingle()
-        )
-      );
-
-      const combined: ReportData[] = assessments
-        .map((a, i) => ({ assessment: a, score: scores[i]?.data }))
-        .filter(r => r.score) as ReportData[];
-
-      setReports(combined);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [organization?.id]);
-
-  useEffect(() => { fetchReports(); }, [fetchReports]);
-
-  async function generatePDF(data: ReportData) {
-    setGenerating(data.assessment.id);
-    try {
-      // Dynamic import jspdf
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const { score, assessment } = data;
-
-      const green = [46, 125, 50];
-      const slate = [15, 23, 42];
-      const muted = [100, 116, 139];
-      const w = 210;
-
-      // ── COVER PAGE ──────────────────────────────────────────────
-      doc.setFillColor(...slate as [number,number,number]);
-      doc.rect(0, 0, w, 297, 'F');
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(0, 0, 8, 297, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(28);
-      doc.setFont('helvetica', 'bold');
-      doc.text('CGEF Platform®', 20, 40);
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...muted as [number,number,number]);
-      doc.text('Horizons Gov Advisors', 20, 50);
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(20, 60, 160, 0.5, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Board Pack', 20, 80);
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Rapport de Gouvernance Cybersécurité', 20, 92);
-
-      doc.setFontSize(11);
-      doc.setTextColor(...muted as [number,number,number]);
-      doc.text(`Organisation : ${organization?.name || 'N/A'}`, 20, 110);
-      doc.text(`Évaluation : ${assessment.name}`, 20, 118);
-      doc.text(`Date : ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`, 20, 126);
-      doc.text(`Statut : CONFIDENTIEL`, 20, 134);
-
-      // CGS Score box
-      const tierColor = getCGSTierColor(score.cgs_tier);
-      const tierRgb = tierColor.startsWith('#') ?
-        [parseInt(tierColor.slice(1,3),16), parseInt(tierColor.slice(3,5),16), parseInt(tierColor.slice(5,7),16)] :
-        [13, 71, 161];
-      doc.setFillColor(...tierRgb as [number,number,number]);
-      doc.roundedRect(20, 150, 80, 50, 4, 4, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(36);
-      doc.setFont('helvetica', 'bold');
-      doc.text(score.cgs_tier, 37, 180);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Cyber Governance Score®', 22, 193);
-
-      doc.setFillColor(18, 34, 24);
-      doc.roundedRect(110, 150, 80, 50, 4, 4, 'F');
-      doc.setTextColor(129, 199, 132);
-      doc.setFontSize(30);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${score.global_score.toFixed(2)}/5`, 118, 178);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Score Global', 118, 190);
-      doc.text(`CMI™ : ${score.cmi_index}/100`, 118, 196);
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(0, 285, w, 12, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text('STRICTLY CONFIDENTIAL — Horizons Gov Advisors — CGEF Platform® v1.0', 20, 293);
-
-      // ── PAGE 2 : SUMMARY ──────────────────────────────────────
-      doc.addPage();
-      doc.setFillColor(247, 248, 250);
-      doc.rect(0, 0, w, 297, 'F');
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(0, 0, w, 20, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RÉSUMÉ EXÉCUTIF', 15, 13);
-
-      doc.setTextColor(...slate as [number,number,number]);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Scores par Pilier CGEF™', 15, 35);
-
-      const pillarY = 42;
-      PILLARS.forEach((pillar, i) => {
-        const ps = score.pillar_scores[pillar.id] || 0;
-        const y = pillarY + i * 22;
-        const barW = Math.round((ps / 5) * 120);
-        const barColor = ps >= 4 ? [13, 71, 161] : ps >= 3 ? [67, 160, 71] : ps >= 2 ? [245, 124, 0] : [211, 47, 47];
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...muted as [number,number,number]);
-        doc.text(`${pillar.id} — ${pillar.name}`, 15, y + 4);
-
-        doc.setFillColor(226, 232, 240);
-        doc.roundedRect(85, y, 120, 7, 2, 2, 'F');
-        doc.setFillColor(...barColor as [number,number,number]);
-        if (barW > 0) doc.roundedRect(85, y, barW, 7, 2, 2, 'F');
-
-        doc.setTextColor(...slate as [number,number,number]);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${ps.toFixed(1)}`, 210, y + 6, { align: 'right' });
-      });
-
-      // Equivalence
-      const eqY = pillarY + PILLARS.length * 22 + 10;
-      const eqColor = score.equivalence_applies ? [232, 245, 233] : [255, 235, 238];
-      const eqBorder = score.equivalence_applies ? [46, 125, 50] : [211, 47, 47];
-      doc.setFillColor(...eqColor as [number,number,number]);
-      doc.roundedRect(15, eqY, 180, 18, 3, 3, 'F');
-      doc.setFillColor(...eqBorder as [number,number,number]);
-      doc.rect(15, eqY, 2, 18, 'F');
-      doc.setTextColor(...eqBorder as [number,number,number]);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text(
-        score.equivalence_applies
-          ? '✓ Principe d\'Équivalence CGEF™ applicable — Couverture 100% tous référentiels'
-          : '⚠ Principe d\'Équivalence non applicable — Des piliers < 3.0 nécessitent attention',
-        20, eqY + 11
-      );
-
-      // Coverage table
-      const covY = eqY + 28;
-      doc.setTextColor(...slate as [number,number,number]);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Couverture des Référentiels', 15, covY);
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(15, covY + 3, 180, 7, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.text('Référentiel', 20, covY + 8.5);
-      doc.text('Couverture', 130, covY + 8.5);
-      doc.text('Statut', 170, covY + 8.5);
-
-      FRAMEWORKS.slice(0, 6).forEach((fw, i) => {
-        const fy = covY + 13 + i * 9;
-        const bg = i % 2 === 0 ? [255, 255, 255] : [247, 248, 250];
-        doc.setFillColor(...bg as [number,number,number]);
-        doc.rect(15, fy - 3, 180, 9, 'F');
-        doc.setTextColor(...slate as [number,number,number]);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(fw.name, 20, fy + 3);
-        const cov = score.equivalence_applies ? 100 : Math.round(50 + score.global_score * 10);
-        doc.text(`${cov}%`, 135, fy + 3);
-        const statusColor = cov >= 80 ? [46, 125, 50] : cov >= 60 ? [245, 124, 0] : [211, 47, 47];
-        doc.setTextColor(...statusColor as [number,number,number]);
-        doc.text(cov >= 80 ? '● Conforme' : cov >= 60 ? '◉ Partiel' : '○ Non conforme', 172, fy + 3);
-      });
-
-      doc.setFillColor(...green as [number,number,number]);
-      doc.rect(0, 285, w, 12, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text(`CGEF Platform® — ${organization?.name} — ${new Date().toLocaleDateString('fr-FR')} — CONFIDENTIEL`, 20, 293);
-
-      // Save
-      const filename = `CGEF_BoardPack_${(organization?.name || 'org').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(filename);
-    } catch (err) {
-      console.error('PDF generation error:', err);
-      alert('Erreur lors de la génération du PDF. Vérifiez que jspdf est installé.');
-    } finally {
-      setGenerating(null);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-brand-green-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  const handleExport = (id: string) => {
+    toast({ type: 'success', title: 'Report exported', message: `${reportTemplates.find(r => r.id === id)?.title} downloaded as PDF` });
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-slate-900">Reporting & Board Pack</h1>
-        <p className="text-brand-slate-500 mt-1">
-          Générez vos rapports de gouvernance cybersécurité pour le conseil d&apos;administration et les investisseurs.
-        </p>
+    <div className="page-container">
+      <PageHeader
+        title="Reports"
+        subtitle="Generate and export professional compliance and security reports"
+        breadcrumb={[{ label: 'Planning' }, { label: 'Reports' }]}
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricCard label="Available Templates" value={reportTemplates.length} sublabel="report types" icon={<FileText className="w-4 h-4 text-brand-400" />} iconBg="bg-brand-500/15" />
+        <MetricCard label="Last Generated" value="Today" sublabel="Executive Summary" icon={<Calendar className="w-4 h-4 text-emerald-400" />} iconBg="bg-emerald-500/15" />
+        <MetricCard label="Reports This Month" value={12} sublabel="across all types" icon={<BarChart3 className="w-4 h-4 text-cyan-400" />} iconBg="bg-cyan-500/15" />
+        <MetricCard label="Scheduled Reports" value={3} sublabel="auto-generated" icon={<Calendar className="w-4 h-4 text-amber-400" />} iconBg="bg-amber-500/15" />
       </div>
 
-      {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { icon: FileText, label: 'Board Pack PDF', desc: 'Rapport complet C-suite avec score CGS®, radar 8 piliers, couverture réglementaire', color: 'text-brand-green-600 bg-brand-green-100' },
-          { icon: TrendingUp, label: 'Rapport Investisseur', desc: 'Score CGS® et CMI™ formatés pour due diligence M&A et notation ESG', color: 'text-brand-blue-600 bg-brand-blue-100' },
-          { icon: Shield, label: 'Rapport Réglementaire', desc: 'Mapping vers NIS2, DORA, ISO 27001, RGPD avec niveaux de couverture', color: 'text-purple-600 bg-purple-100' },
-        ].map((c, i) => (
-          <div key={i} className="card card-body">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${c.color}`}>
-              <c.icon className="w-5 h-5" />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {reportTemplates.map((report) => (
+          <div key={report.id} className="bg-surface-850 rounded-xl border border-white/8 p-5 hover:border-white/15 hover:bg-surface-800 transition-all group">
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl ${report.bg} flex items-center justify-center`}>
+                <report.icon className={`w-5 h-5 ${report.color}`} />
+              </div>
+              <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">{report.pages} pages</span>
             </div>
-            <h3 className="font-semibold text-brand-slate-900 mb-1">{c.label}</h3>
-            <p className="text-sm text-brand-slate-500">{c.desc}</p>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">{report.title}</h3>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">{report.description}</p>
+            <div className="space-y-2 text-xs mb-4">
+              <div className="flex justify-between"><span className="text-slate-500">Audience</span><span className="text-slate-300">{report.audience}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Last generated</span><span className="text-slate-300">{new Date(report.lastGenerated).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="btn btn-secondary btn-sm flex-1 gap-1.5"
+                onClick={() => setPreview(report.id)}
+              >
+                <Eye className="w-3 h-3" /> Preview
+              </button>
+              <button
+                className="btn btn-outline btn-sm gap-1.5"
+                onClick={() => handleExport(report.id)}
+              >
+                <Download className="w-3 h-3" /> Export
+              </button>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Reports list */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="font-semibold text-brand-slate-900">Évaluations complétées</h2>
-          <p className="text-sm text-brand-slate-500">Sélectionnez une évaluation pour générer un rapport</p>
-        </div>
-        <div className="card-body">
-          {reports.length === 0 ? (
-            <div className="text-center py-12">
-              <BarChart3 className="w-12 h-12 text-brand-slate-300 mx-auto mb-4" />
-              <p className="text-brand-slate-500 font-medium">Aucune évaluation complétée</p>
-              <p className="text-brand-slate-400 text-sm mt-1">
-                Complétez une évaluation CGEF™ pour générer votre premier Board Pack.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {reports.map((r) => {
-                const tierColor = getCGSTierColor(r.score.cgs_tier);
-                const isGen = generating === r.assessment.id;
-                return (
-                  <div key={r.assessment.id} className="border border-brand-slate-200 rounded-xl p-5 hover:border-brand-green-300 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span
-                            className="px-2.5 py-1 rounded-lg text-sm font-bold text-white"
-                            style={{ backgroundColor: tierColor }}
-                          >
-                            {r.score.cgs_tier}
-                          </span>
-                          <span className="font-semibold text-brand-slate-900 truncate">{r.assessment.name}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-4 text-sm text-brand-slate-500">
-                          <span className="flex items-center gap-1">
-                            <Target className="w-4 h-4" />
-                            Score : {r.score.global_score.toFixed(2)}/5 — CMI™ {r.score.cmi_index}/100
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4 text-brand-green-500" />
-                            {getCGSTierLabel(r.score.cgs_tier)}
-                          </span>
-                          {r.score.equivalence_applies && (
-                            <span className="text-brand-green-600 font-medium">✓ Principe d&apos;Équivalence</span>
-                          )}
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {r.assessment.completed_at
-                              ? new Date(r.assessment.completed_at).toLocaleDateString('fr-FR')
-                              : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => generatePDF(r)}
-                        disabled={isGen}
-                        className="btn-primary flex items-center gap-2 flex-shrink-0"
-                      >
-                        {isGen ? (
-                          <><Loader2 className="w-4 h-4 animate-spin" /> Génération...</>
-                        ) : (
-                          <><Download className="w-4 h-4" /> Board Pack PDF</>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      {preview && <ReportPreview id={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

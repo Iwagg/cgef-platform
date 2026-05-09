@@ -1,340 +1,255 @@
 import { useState } from 'react';
-import { User, Building2, Bell, Shield, Save, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Eye, EyeOff, QrCode } from 'lucide-react';
+import { User, Building2, Bell, Shield, Save, Users, Key, CreditCard, CircleAlert as AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
-import type { UserRole } from '../lib/types';
+import { PageHeader } from '../components/ui/PageHeader';
+import { toast } from '../components/ui/Toast';
+import { mockUsers } from '../lib/mock-data';
 
-type TabId = 'profile' | 'organization' | 'notifications' | 'security';
-
-const TABS: { id: TabId; label: string; icon: React.ComponentType<{className?:string}> }[] = [
-  { id: 'profile', label: 'Profil', icon: User },
-  { id: 'organization', label: 'Organisation', icon: Building2 },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'security', label: 'Sécurité', icon: Shield },
+const tabs = [
+  { key: 'profile', label: 'Profile', icon: User },
+  { key: 'organisation', label: 'Organisation', icon: Building2 },
+  { key: 'team', label: 'Team & Roles', icon: Users },
+  { key: 'notifications', label: 'Notifications', icon: Bell },
+  { key: 'security', label: 'Security', icon: Shield },
+  { key: 'api', label: 'API Keys', icon: Key },
+  { key: 'billing', label: 'Billing', icon: CreditCard },
 ];
 
-const ROLES: { value: UserRole; label: string; desc: string }[] = [
-  { value: 'analyst', label: 'Analyste', desc: 'Peut créer et évaluer des évaluations' },
-  { value: 'manager', label: 'Manager', desc: 'Peut approuver et générer des rapports' },
-  { value: 'ciso', label: 'RSSI', desc: 'Accès complet sauf gestion des tenants' },
-  { value: 'admin', label: 'Administrateur', desc: 'Accès complet à toutes les fonctionnalités' },
-];
-
-const SECTORS = ['Banque & Finance','Assurance','Santé','Énergie','Transport','Télécommunications','Industrie','Commerce & Distribution','Services','Secteur Public','Technologies','Autre'];
-const COUNTRIES = ['FR','DE','IT','ES','BE','NL','LU','CH','GB','OTHER'];
+const roleOptions = ['admin', 'ciso', 'manager', 'analyst', 'auditor', 'consultant', 'viewer'];
 
 export function Settings() {
-  const { profile, organization, updateProfile, updateOrganization, changePassword, enableMFA, verifyMFA } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<TabId>('profile');
+  const { profile, organization } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('profile');
+  const [name, setName] = useState(profile?.full_name ?? '');
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
 
-  // Profile
-  const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [role, setRole] = useState<UserRole>(profile?.role || 'analyst');
-
-  // Organization
-  const [orgName, setOrgName] = useState(organization?.name || '');
-  const [sector, setSector] = useState(organization?.sector || '');
-  const [country, setCountry] = useState(organization?.country || 'FR');
-  const [employeeCount, setEmployeeCount] = useState(organization?.employee_count?.toString() || '');
-
-  // Notifications (stored in localStorage for now — future: Supabase table)
-  const [emailNotif, setEmailNotif] = useState(() => localStorage.getItem('notif_email') !== 'false');
-  const [assessmentReminders, setAssessmentReminders] = useState(() => localStorage.getItem('notif_reminders') !== 'false');
-  const [actionAlerts, setActionAlerts] = useState(() => localStorage.getItem('notif_actions') !== 'false');
-  const [weeklyDigest, setWeeklyDigest] = useState(() => localStorage.getItem('notif_digest') === 'true');
-
-  // Security
-  const [_currentPwd, setCurrentPwd] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [showPwd, setShowPwd] = useState(false);
-  const [mfaQr, setMfaQr] = useState<string | null>(null);
-  const [mfaCode, setMfaCode] = useState('');
-  const [mfaEnrolling, setMfaEnrolling] = useState(false);
-
-  const flash = (msg: string, isError = false) => {
-    if (isError) { setError(msg); setSuccess(''); }
-    else { setSuccess(msg); setError(''); }
-    setTimeout(() => { setSuccess(''); setError(''); }, 4000);
-  };
-
-  // ── HANDLERS ──────────────────────────────────────────────
-  const handleSaveProfile = async () => {
+  const handleSave = async () => {
     setSaving(true);
-    try {
-      await updateProfile({ full_name: fullName, role });
-      flash('Profil mis à jour avec succès.');
-    } catch (e: unknown) {
-      flash(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde', true);
-    } finally { setSaving(false); }
-  };
-
-  const handleSaveOrg = async () => {
-    setSaving(true);
-    try {
-      await updateOrganization({ name: orgName, sector, country, employee_count: employeeCount ? parseInt(employeeCount) : undefined });
-      flash('Organisation mise à jour avec succès.');
-    } catch (e: unknown) {
-      flash(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde', true);
-    } finally { setSaving(false); }
-  };
-
-  const handleSaveNotifications = () => {
-    localStorage.setItem('notif_email', String(emailNotif));
-    localStorage.setItem('notif_reminders', String(assessmentReminders));
-    localStorage.setItem('notif_actions', String(actionAlerts));
-    localStorage.setItem('notif_digest', String(weeklyDigest));
-    flash('Préférences de notifications sauvegardées.');
-  };
-
-  const handleChangePassword = async () => {
-    if (!newPwd || newPwd.length < 8) { flash('Le mot de passe doit contenir au moins 8 caractères.', true); return; }
-    if (newPwd !== confirmPwd) { flash('Les mots de passe ne correspondent pas.', true); return; }
-    setSaving(true);
-    try {
-      await changePassword(newPwd);
-      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
-      flash('Mot de passe modifié avec succès.');
-    } catch (e: unknown) {
-      flash(e instanceof Error ? e.message : 'Erreur lors du changement de mot de passe', true);
-    } finally { setSaving(false); }
-  };
-
-  const handleEnableMFA = async () => {
-    setMfaEnrolling(true);
-    try {
-      const result = await enableMFA();
-      if (result) setMfaQr(result.qr);
-    } catch (e: unknown) {
-      flash(e instanceof Error ? e.message : 'Erreur lors de l\'activation du MFA', true);
-    } finally { setMfaEnrolling(false); }
-  };
-
-  const handleVerifyMFA = async () => {
-    if (!mfaCode || mfaCode.length !== 6) { flash('Entrez le code à 6 chiffres de votre application.', true); return; }
-    setSaving(true);
-    try {
-      const ok = await verifyMFA(mfaCode);
-      if (ok) { setMfaQr(null); setMfaCode(''); flash('MFA activé avec succès !'); }
-      else { flash('Code incorrect. Veuillez réessayer.', true); }
-    } catch { flash('Erreur lors de la vérification.', true); }
-    finally { setSaving(false); }
+    await new Promise((r) => setTimeout(r, 800));
+    setSaving(false);
+    toast({ type: 'success', title: 'Settings saved', message: 'Your changes have been saved successfully.' });
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-slate-900">Paramètres</h1>
-        <p className="text-brand-slate-500 mt-1">Gérez votre profil, votre organisation et vos préférences</p>
-      </div>
+    <div className="page-container">
+      <PageHeader title="Settings" subtitle="Manage your account, organisation, and platform preferences" />
 
-      {(success || error) && (
-        <div className={`flex items-center gap-2 p-3 rounded-lg border ${success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          {success ? <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
-          <span className={`text-sm ${success ? 'text-green-700' : 'text-red-700'}`}>{success || error}</span>
+      <div className="flex gap-6">
+        {/* Sidebar tabs */}
+        <div className="w-48 flex-shrink-0">
+          <nav className="space-y-0.5">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.key ? 'bg-brand-500/15 text-slate-100 border border-brand-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-white/6'
+                }`}
+              >
+                <tab.icon className="w-4 h-4 flex-shrink-0" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
-      )}
 
-      <div className="flex gap-1 border-b border-brand-slate-200">
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id ? 'border-brand-green-500 text-brand-green-600' : 'border-transparent text-brand-slate-500 hover:text-brand-slate-700'
-            }`}>
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {/* Content */}
+        <div className="flex-1 min-w-0 space-y-5">
+          {activeTab === 'profile' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-5">Profile Information</h3>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-xl bg-brand-500/20 flex items-center justify-center text-2xl font-bold text-brand-400">
+                  {(profile?.full_name ?? 'U').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">{profile?.full_name ?? 'User'}</p>
+                  <p className="text-xs text-slate-400 capitalize">{profile?.role}</p>
+                  <button className="text-xs text-brand-400 hover:text-brand-300 mt-1 transition-colors">Change avatar</button>
+                </div>
+              </div>
+              <div className="space-y-4 max-w-md">
+                <div><label className="label">Full Name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
+                <div><label className="label">Email Address</label><input type="email" className="input" defaultValue={profile?.full_name ? `${profile.full_name.toLowerCase().replace(' ', '.')}@company.com` : ''} /></div>
+                <div><label className="label">Role</label><select className="select" defaultValue={profile?.role}>{roleOptions.map(r => <option key={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}</select></div>
+                <div><label className="label">Language</label><select className="select"><option>English</option><option>French</option><option>German</option></select></div>
+              </div>
+              <div className="mt-5 pt-4 border-t border-white/8">
+                <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+                  {saving ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          )}
 
-      {/* ── PROFILE ── */}
-      {activeTab === 'profile' && (
-        <div className="card max-w-2xl">
-          <div className="card-header"><h2 className="font-semibold text-brand-slate-900">Informations personnelles</h2></div>
-          <div className="card-body space-y-4">
-            <div className="w-16 h-16 rounded-full bg-brand-green-100 flex items-center justify-center mb-2">
-              <span className="text-2xl font-bold text-brand-green-600">{(fullName || 'U')[0].toUpperCase()}</span>
+          {activeTab === 'organisation' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-5">Organisation Settings</h3>
+              <div className="space-y-4 max-w-md">
+                <div><label className="label">Organisation Name</label><input className="input" defaultValue={organization?.name ?? ''} /></div>
+                <div><label className="label">Sector</label><select className="select"><option>Finance</option><option>Insurance</option><option>Healthcare</option><option>Industry</option><option>Energy</option><option>Public Sector</option><option>Technology</option><option>Consulting</option></select></div>
+                <div><label className="label">Country</label><input className="input" defaultValue="France" /></div>
+                <div><label className="label">Organisation Size</label><select className="select"><option>SME (1–249)</option><option>Mid-market (250–999)</option><option>Enterprise (1000+)</option></select></div>
+              </div>
+              <div className="mt-5">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Active Frameworks</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {['ISO 27001', 'NIS2', 'DORA', 'RGPD', 'NIST CSF', 'CIS Controls', 'SOC 2', 'PCI-DSS'].map((f) => (
+                    <label key={f} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer p-2 rounded-lg hover:bg-white/4">
+                      <input type="checkbox" className="accent-brand-500" defaultChecked={['ISO 27001', 'NIS2', 'DORA', 'RGPD'].includes(f)} />
+                      {f}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-5 pt-4 border-t border-white/8">
+                <button className="btn btn-primary btn-sm" onClick={handleSave}>
+                  <Save className="w-3.5 h-3.5" /> Save Changes
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="label">Nom complet</label>
-              <input className="input" type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jean Dupont" />
+          )}
+
+          {activeTab === 'team' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-200">Team Members</h3>
+                <button className="btn btn-primary btn-sm">Invite Member</button>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-surface-800 border-b border-white/8">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">User</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Role</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mockUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-brand-500/20 flex items-center justify-center text-xs font-bold text-brand-400">{u.name.charAt(0)}</div>
+                          <span className="text-slate-200 font-medium">{u.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{u.email}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-brand-500/15 text-brand-400 border border-brand-500/20">
+                          {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button className="text-xs text-slate-400 hover:text-slate-200 transition-colors">Edit</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div>
-              <label className="label">Email</label>
-              <input className="input bg-brand-slate-50 cursor-not-allowed" type="email" value={useAuthStore.getState().user?.email || ''} readOnly />
-              <p className="text-xs text-brand-slate-400 mt-1">L&apos;email ne peut pas être modifié ici.</p>
-            </div>
-            <div>
-              <label className="label">Rôle</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                {ROLES.map(r => (
-                  <button key={r.value} onClick={() => setRole(r.value)}
-                    className={`p-3 rounded-lg border-2 text-left transition-all ${role === r.value ? 'border-brand-green-500 bg-brand-green-50' : 'border-brand-slate-200 hover:border-brand-slate-300'}`}>
-                    <div className="font-medium text-brand-slate-900 text-sm">{r.label}</div>
-                    <div className="text-xs text-brand-slate-400 mt-0.5">{r.desc}</div>
-                  </button>
+          )}
+
+          {activeTab === 'notifications' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-5">Notification Preferences</h3>
+              <div className="space-y-3 max-w-lg">
+                {[
+                  { label: 'Critical risk created', sublabel: 'Notify when a critical severity risk is added', checked: true },
+                  { label: 'Compliance gap detected', sublabel: 'Alert when a new compliance gap is identified', checked: true },
+                  { label: 'Action plan overdue', sublabel: 'Reminder when an action plan passes its due date', checked: true },
+                  { label: 'Evidence requested', sublabel: 'Notify when evidence is requested for an audit', checked: true },
+                  { label: 'Policy review due', sublabel: 'Reminder 30 days before policy review deadline', checked: false },
+                  { label: 'Weekly digest', sublabel: 'Summary of all activity every Monday', checked: false },
+                  { label: 'Report generated', sublabel: 'Notify when a scheduled report is ready', checked: true },
+                ].map((n) => (
+                  <label key={n.label} className="flex items-center justify-between gap-3 p-3 rounded-lg hover:bg-white/4 cursor-pointer">
+                    <div>
+                      <p className="text-sm text-slate-200">{n.label}</p>
+                      <p className="text-xs text-slate-500">{n.sublabel}</p>
+                    </div>
+                    <input type="checkbox" className="accent-brand-500 w-4 h-4" defaultChecked={n.checked} />
+                  </label>
                 ))}
               </div>
             </div>
-            <button onClick={handleSaveProfile} disabled={saving} className="btn-primary flex items-center gap-2">
-              <Save className="w-4 h-4" />{saving ? 'Sauvegarde...' : 'Sauvegarder le profil'}
-            </button>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* ── ORGANISATION ── */}
-      {activeTab === 'organization' && (
-        <div className="card max-w-2xl">
-          <div className="card-header">
-            <h2 className="font-semibold text-brand-slate-900">Paramètres de l&apos;organisation</h2>
-            {organization && <p className="text-xs text-brand-slate-400 mt-0.5 font-mono">ID : {organization.id}</p>}
-          </div>
-          <div className="card-body space-y-4">
-            <div>
-              <label className="label">Nom de l&apos;organisation *</label>
-              <input className="input" type="text" value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Mon Organisation" />
-            </div>
-            <div>
-              <label className="label">Secteur d&apos;activité</label>
-              <select className="input" value={sector} onChange={e => setSector(e.target.value)}>
-                <option value="">Sélectionner...</option>
-                {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Pays</label>
-                <select className="input" value={country} onChange={e => setCountry(e.target.value)}>
-                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Effectif</label>
-                <input className="input" type="number" value={employeeCount} onChange={e => setEmployeeCount(e.target.value)} placeholder="500" />
-              </div>
-            </div>
-            <div className="p-3 bg-brand-slate-50 rounded-lg border border-brand-slate-200">
-              <p className="text-xs font-mono text-brand-slate-500">ID Organisation (à partager avec vos collaborateurs) :</p>
-              <p className="text-sm font-mono text-brand-slate-700 mt-1 break-all">{organization?.id || '—'}</p>
-            </div>
-            <button onClick={handleSaveOrg} disabled={saving} className="btn-primary flex items-center gap-2">
-              <Save className="w-4 h-4" />{saving ? 'Sauvegarde...' : 'Sauvegarder l\'organisation'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── NOTIFICATIONS ── */}
-      {activeTab === 'notifications' && (
-        <div className="card max-w-2xl">
-          <div className="card-header"><h2 className="font-semibold text-brand-slate-900">Préférences de notification</h2></div>
-          <div className="card-body space-y-4">
-            {[
-              { label: 'Notifications par email', desc: 'Recevoir les notifications importantes par email', val: emailNotif, set: setEmailNotif },
-              { label: 'Rappels d\'évaluation', desc: 'Alertes pour les évaluations en attente ou en retard', val: assessmentReminders, set: setAssessmentReminders },
-              { label: 'Alertes plans d\'action', desc: 'Notifications pour les tâches et échéances', val: actionAlerts, set: setActionAlerts },
-              { label: 'Synthèse hebdomadaire', desc: 'Récapitulatif de votre posture de sécurité chaque semaine', val: weeklyDigest, set: setWeeklyDigest },
-            ].map((n, i) => (
-              <div key={i} className="flex items-center justify-between p-4 border border-brand-slate-200 rounded-lg">
-                <div>
-                  <p className="font-medium text-brand-slate-900">{n.label}</p>
-                  <p className="text-sm text-brand-slate-500">{n.desc}</p>
+          {activeTab === 'security' && (
+            <div className="space-y-4">
+              <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+                <h3 className="text-sm font-semibold text-slate-200 mb-4">Password</h3>
+                <div className="space-y-3 max-w-md">
+                  <div><label className="label">Current Password</label><input type="password" className="input" placeholder="••••••••" /></div>
+                  <div><label className="label">New Password</label><input type="password" className="input" placeholder="••••••••" /></div>
+                  <div><label className="label">Confirm New Password</label><input type="password" className="input" placeholder="••••••••" /></div>
                 </div>
-                <button
-                  onClick={() => n.set(!n.val)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${n.val ? 'bg-brand-green-500' : 'bg-brand-slate-200'}`}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${n.val ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
+                <button className="btn btn-primary btn-sm mt-4">Update Password</button>
               </div>
-            ))}
-            <button onClick={handleSaveNotifications} className="btn-primary flex items-center gap-2">
-              <Save className="w-4 h-4" />Sauvegarder les notifications
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── SÉCURITÉ ── */}
-      {activeTab === 'security' && (
-        <div className="space-y-6 max-w-2xl">
-          {/* Password change */}
-          <div className="card">
-            <div className="card-header"><h2 className="font-semibold text-brand-slate-900">Changer le mot de passe</h2></div>
-            <div className="card-body space-y-4">
-              <div>
-                <label className="label">Nouveau mot de passe</label>
-                <div className="relative">
-                  <input className="input pr-10" type={showPwd ? 'text' : 'password'} value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Min. 8 caractères" />
-                  <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-slate-400">
-                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+                <h3 className="text-sm font-semibold text-slate-200 mb-2">Multi-Factor Authentication</h3>
+                <p className="text-xs text-slate-400 mb-4">Add an extra layer of security to your account.</p>
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg mb-4">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-xs text-emerald-400 font-medium">MFA is enabled on your account</span>
                 </div>
-                {newPwd && (
-                  <div className="mt-2 flex gap-1">
-                    {['Faible','Moyen','Fort','Très fort'].map((_s, i) => (
-                      <div key={i} className={`h-1 flex-1 rounded-full ${newPwd.length > i * 3 + 3 ? (i < 1 ? 'bg-red-400' : i < 2 ? 'bg-orange-400' : i < 3 ? 'bg-yellow-400' : 'bg-green-500') : 'bg-brand-slate-200'}`} />
-                    ))}
-                    <span className="text-xs text-brand-slate-400 ml-2">{newPwd.length < 6 ? 'Faible' : newPwd.length < 10 ? 'Moyen' : newPwd.length < 14 ? 'Fort' : 'Très fort'}</span>
-                  </div>
-                )}
+                <button className="btn btn-secondary btn-sm">Manage MFA devices</button>
               </div>
-              <div>
-                <label className="label">Confirmer le nouveau mot de passe</label>
-                <input className="input" type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="Confirmer" />
-              </div>
-              <button onClick={handleChangePassword} disabled={saving || !newPwd} className="btn-primary flex items-center gap-2">
-                <Shield className="w-4 h-4" />{saving ? 'Modification...' : 'Changer le mot de passe'}
-              </button>
-            </div>
-          </div>
-
-          {/* MFA */}
-          <div className="card">
-            <div className="card-header">
-              <h2 className="font-semibold text-brand-slate-900">Authentification Multi-Facteurs (MFA)</h2>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${profile?.mfa_enabled ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                {profile?.mfa_enabled ? '✓ Activé' : '⚠ Non activé'}
-              </span>
-            </div>
-            <div className="card-body">
-              {profile?.mfa_enabled ? (
-                <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <p className="text-sm text-green-700">Le MFA est activé sur votre compte. Votre accès est sécurisé.</p>
+              <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+                <h3 className="text-sm font-semibold text-slate-200 mb-2">Active Sessions</h3>
+                <div className="space-y-2 text-xs">
+                  {[
+                    { device: 'Chrome on macOS', location: 'Paris, France', current: true, last: 'Active now' },
+                    { device: 'Safari on iPhone 15', location: 'Paris, France', current: false, last: '2 hours ago' },
+                  ].map((s, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-white/4 rounded-lg">
+                      <div>
+                        <p className="text-slate-200 font-medium">{s.device} {s.current && <span className="text-emerald-400">(Current)</span>}</p>
+                        <p className="text-slate-500">{s.location} · {s.last}</p>
+                      </div>
+                      {!s.current && <button className="text-red-400 hover:text-red-300 transition-colors">Revoke</button>}
+                    </div>
+                  ))}
                 </div>
-              ) : mfaQr ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-brand-slate-50 rounded-lg border border-brand-slate-200 text-center">
-                    <QrCode className="w-8 h-8 text-brand-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-brand-slate-600 mb-3">Scannez ce QR code avec Google Authenticator ou Authy :</p>
-                    <img src={mfaQr} alt="QR Code MFA" className="mx-auto w-48 h-48 border-4 border-white shadow-lg rounded" />
-                  </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'api' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-2">API Keys</h3>
+              <p className="text-xs text-slate-400 mb-5">Use API keys to programmatically access CGEF Platform data.</p>
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-4 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-400">API access is available on Enterprise plans. Contact your account manager to enable.</p>
+              </div>
+              <button className="btn btn-secondary btn-sm opacity-50 cursor-not-allowed">Generate API Key</button>
+            </div>
+          )}
+
+          {activeTab === 'billing' && (
+            <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+              <h3 className="text-sm font-semibold text-slate-200 mb-5">Billing & Subscription</h3>
+              <div className="bg-gradient-to-r from-brand-900/50 to-surface-800 border border-brand-500/20 rounded-xl p-5 mb-5">
+                <div className="flex justify-between items-start">
                   <div>
-                    <label className="label">Code de vérification (6 chiffres)</label>
-                    <input className="input text-center tracking-widest text-lg" type="text" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,''))} placeholder="000000" />
+                    <span className="text-xs text-brand-400 font-semibold uppercase tracking-wide">Enterprise Plan</span>
+                    <p className="text-xl font-bold text-slate-100 mt-1">€2,400<span className="text-sm font-normal text-slate-400">/month</span></p>
                   </div>
-                  <button onClick={handleVerifyMFA} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2">
-                    <Shield className="w-4 h-4" />{saving ? 'Vérification...' : 'Activer le MFA'}
-                  </button>
+                  <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 rounded-md text-xs font-medium">Active</span>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-brand-slate-600">
-                    Protégez votre compte avec une authentification en deux étapes via une application TOTP (Google Authenticator, Authy).
-                  </p>
-                  <button onClick={handleEnableMFA} disabled={mfaEnrolling} className="btn-primary flex items-center gap-2">
-                    <Shield className="w-4 h-4" />{mfaEnrolling ? 'Configuration...' : 'Activer le MFA'}
-                  </button>
+                <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
+                  <div className="text-center"><p className="text-slate-100 font-bold">Unlimited</p><p className="text-slate-500">Users</p></div>
+                  <div className="text-center"><p className="text-slate-100 font-bold">7</p><p className="text-slate-500">Frameworks</p></div>
+                  <div className="text-center"><p className="text-slate-100 font-bold">API</p><p className="text-slate-500">Access</p></div>
                 </div>
-              )}
+              </div>
+              <p className="text-xs text-slate-500">Next billing date: June 1, 2026 · Payment method: •••• 4242</p>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

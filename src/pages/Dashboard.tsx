@@ -1,290 +1,316 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { TrendingUp, Shield, CheckCircle, Clock, ArrowRight, FileCheck, AlertTriangle, Building2 } from 'lucide-react';
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/auth';
-import { PILLARS, FRAMEWORKS } from '../lib/cgef-framework';
-import { getCGSTierColor, getCGSTierLabel, computeFrameworkCoverage } from '../lib/scoring';
-import type { Assessment, AssessmentScore, ActionPlan, AssessmentResponse } from '../lib/types';
+import { useNavigate } from 'react-router-dom';
+import { TriangleAlert as AlertTriangle, Shield, CircleCheck as CheckCircle, Clock, Activity, ArrowRight, Target, FileText, Zap, ChartBar as BarChart2, ChevronRight } from 'lucide-react';
+import {
+  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
+  XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area
+} from 'recharts';
+import {
+  mockDashboardKPIs, mockRisks, mockActionPlans, mockMaturityDomains,
+  mockComplianceTimeline
+} from '../lib/mock-data';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
+import { RiskBadge, StatusBadge } from '../components/ui/StatusBadge';
 
-interface DashboardData {
-  latestScore: AssessmentScore | null;
-  latestResponses: AssessmentResponse[];
-  recentAssessments: Assessment[];
-  actionPlans: ActionPlan[];
-  openActions: number;
-  overdueActions: number;
+const radarData = mockMaturityDomains.map((d) => ({
+  domain: d.domain,
+  score: d.score,
+  target: d.target,
+}));
+
+const riskMatrixColors = [
+  ['low', 'low', 'medium', 'high', 'critical'],
+  ['low', 'medium', 'medium', 'high', 'critical'],
+  ['low', 'medium', 'high', 'critical', 'critical'],
+  ['medium', 'high', 'critical', 'critical', 'critical'],
+  ['high', 'critical', 'critical', 'critical', 'critical'],
+];
+
+const colorMap: Record<string, string> = {
+  low: 'bg-emerald-500/15 text-emerald-300',
+  medium: 'bg-amber-500/15 text-amber-300',
+  high: 'bg-orange-500/15 text-orange-300',
+  critical: 'bg-red-500/20 text-red-300',
+};
+
+const riskMatrix: number[][] = [
+  [0, 0, 1, 0, 0],
+  [0, 1, 1, 1, 0],
+  [0, 1, 2, 2, 1],
+  [0, 0, 1, 2, 1],
+  [0, 0, 0, 1, 1],
+];
+
+const kpis = mockDashboardKPIs;
+const criticalRisks = mockRisks.filter((r) => r.severity === 'critical');
+const highRisks = mockRisks.filter((r) => r.severity === 'high');
+const openActions = mockActionPlans.filter((a) => a.status === 'in_progress' || a.status === 'todo');
+const overdueActions = mockActionPlans.filter((a) => a.status !== 'done' && new Date(a.dueDate) < new Date());
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{name: string; color: string; value: number}>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-surface-800 border border-white/10 rounded-lg p-3 shadow-modal text-xs">
+      <p className="text-slate-300 font-medium mb-2">{label}</p>
+      {payload.map((p) => (
+        <div key={p.name} className="flex items-center gap-2 mb-1">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-400">{p.name}:</span>
+          <span className="text-slate-200 font-semibold">{p.value}%</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function Dashboard() {
-  const { organization } = useAuthStore();
-  const [data, setData] = useState<DashboardData>({
-    latestScore: null,
-    latestResponses: [],
-    recentAssessments: [],
-    actionPlans: [],
-    openActions: 0,
-    overdueActions: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = useCallback(async () => {
-    if (!organization?.id) { setLoading(false); return; }
-    try {
-      const [assessmentsRes, actionsRes] = await Promise.all([
-        supabase.from('assessments').select('*').eq('organization_id', organization.id).order('created_at', { ascending: false }).limit(5),
-        supabase.from('action_plans').select('*').eq('organization_id', organization.id).order('created_at', { ascending: false }),
-      ]);
-
-      const assessments = assessmentsRes.data || [];
-      const actions = actionsRes.data || [];
-
-      // Find the latest completed assessment
-      const latestCompleted = assessments.find(a => a.status === 'completed');
-      let latestScore: AssessmentScore | null = null;
-      let latestResponses: AssessmentResponse[] = [];
-
-      if (latestCompleted) {
-        const [scoreRes, responsesRes] = await Promise.all([
-          supabase.from('assessment_scores').select('*').eq('assessment_id', latestCompleted.id).order('computed_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('assessment_responses').select('*').eq('assessment_id', latestCompleted.id),
-        ]);
-        latestScore = scoreRes.data;
-        latestResponses = responsesRes.data || [];
-      }
-
-      const today = new Date().toISOString().split('T')[0];
-      const overdueActions = actions.filter(a => a.status !== 'completed' && a.status !== 'cancelled' && a.due_date && a.due_date < today).length;
-      const openActions = actions.filter(a => a.status === 'open' || a.status === 'in_progress').length;
-
-      setData({ latestScore, latestResponses, recentAssessments: assessments, actionPlans: actions.slice(0, 5), openActions, overdueActions });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [organization?.id]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-4 border-brand-green-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  // Empty state — no org (shouldn't happen if Onboarding works, but safety net)
-  if (!organization) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <Building2 className="w-12 h-12 text-brand-slate-300" />
-        <p className="text-brand-slate-500">Aucune organisation configurée.</p>
-        <Link to="/onboarding" className="btn-primary">Configurer mon espace</Link>
-      </div>
-    );
-  }
-
-  const { latestScore, latestResponses, recentAssessments, actionPlans, openActions, overdueActions } = data;
-
-  const radarData = PILLARS.map(p => ({
-    pillar: p.id,
-    score: latestScore?.pillar_scores?.[p.id] ?? 0,
-    fullMark: 5,
-  }));
-
-  const barData = FRAMEWORKS.slice(0, 6).map(fw => ({
-    name: fw.name.split(' ')[0],
-    coverage: latestResponses.length > 0 ? computeFrameworkCoverage(latestResponses, fw.id) : 0,
-    fill: fw.color,
-  }));
+  const navigate = useNavigate();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-brand-slate-900">Tableau de bord</h1>
-        <p className="text-brand-slate-500 mt-1">{organization.name} · Vue d&apos;ensemble de votre posture de sécurité</p>
+    <div className="page-container">
+      <PageHeader
+        title="Executive Dashboard"
+        subtitle="Nexus Finance Group — Cyber governance overview · May 2026"
+        actions={
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/reporting')}>
+            <FileText className="w-3.5 h-3.5" />
+            Export Report
+          </button>
+        }
+      />
+
+      {/* Top KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricCard label="Cyber Maturity Score" value="3.2" unit="/ 5" trend={0.3} trendLabel="vs Q1" icon={<Shield className="w-4 h-4 text-brand-400" />} iconBg="bg-brand-500/15" onClick={() => navigate('/maturity')} />
+        <MetricCard label="Compliance Readiness" value="68%" trend={4} trendLabel="vs Q1" icon={<CheckCircle className="w-4 h-4 text-emerald-400" />} iconBg="bg-emerald-500/15" onClick={() => navigate('/compliance')} />
+        <MetricCard label="Critical Risks Open" value={kpis.criticalRisks} trend={-2} trendLabel="vs Q1" icon={<AlertTriangle className="w-4 h-4 text-red-400" />} iconBg="bg-red-500/15" variant="danger" onClick={() => navigate('/risks')} />
+        <MetricCard label="Overdue Action Plans" value={overdueActions.length} sublabel={`${openActions.length} total open`} icon={<Clock className="w-4 h-4 text-amber-400" />} iconBg="bg-amber-500/15" variant="warning" onClick={() => navigate('/incidents')} />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricCard label="Audit Readiness" value={`${kpis.auditReadiness}%`} trend={8} trendLabel="vs Q1" icon={<Activity className="w-4 h-4 text-cyan-400" />} iconBg="bg-cyan-500/15" onClick={() => navigate('/audit')} />
+        <MetricCard label="Control Coverage" value={`${kpis.controlCoverage}%`} sublabel="controls implemented" icon={<Target className="w-4 h-4 text-blue-400" />} iconBg="bg-blue-500/15" onClick={() => navigate('/controls')} />
+        <MetricCard label="Open Incidents" value={kpis.openIncidents} sublabel="1 critical active" icon={<Zap className="w-4 h-4 text-orange-400" />} iconBg="bg-orange-500/15" onClick={() => navigate('/incidents')} />
+        <MetricCard label="Remediation Progress" value={`${kpis.actionPlanProgress}%`} sublabel="of actions on track" icon={<BarChart2 className="w-4 h-4 text-violet-400" />} iconBg="bg-violet-500/15" />
       </div>
 
-      {/* No assessment yet */}
-      {!latestScore && (
-        <div className="card bg-gradient-to-r from-brand-green-50 to-brand-blue-50 border-brand-green-200">
-          <div className="card-body flex items-center justify-between flex-wrap gap-4">
+      {/* Radar + Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+        <div className="bg-surface-850 rounded-xl border border-white/8 p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-brand-slate-900">Démarrez votre première évaluation CGEF™</h2>
-              <p className="text-brand-slate-600 mt-1 text-sm">Évaluez votre maturité sur 120 processus et 8 piliers pour obtenir votre score CGS®.</p>
+              <h3 className="text-sm font-semibold text-slate-200">Cyber Maturity by Domain</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Current vs Target maturity levels</p>
             </div>
-            <Link to="/assessments" className="btn-primary flex items-center gap-2">
-              Lancer une évaluation <ArrowRight className="w-4 h-4" />
-            </Link>
+            <button className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" onClick={() => navigate('/maturity')}>
+              Full assessment <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+                <PolarGrid stroke="rgba(255,255,255,0.06)" />
+                <PolarAngleAxis dataKey="domain" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <Radar name="Target" dataKey="target" stroke="#1d4ed8" fill="#3b82f6" fillOpacity={0.06} strokeWidth={1} strokeDasharray="4 4" />
+                <Radar name="Current" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center gap-6 mt-1 justify-center">
+            <div className="flex items-center gap-2"><div className="w-4 h-0.5 bg-brand-500" /><span className="text-xs text-slate-400">Current</span></div>
+            <div className="flex items-center gap-2"><div className="w-4 h-0.5 border-t border-dashed border-blue-700" /><span className="text-xs text-slate-400">Target</span></div>
           </div>
         </div>
-      )}
 
-      {/* KPI row */}
-      {latestScore && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              label: 'Score CGS®',
-              value: latestScore.cgs_tier,
-              sub: getCGSTierLabel(latestScore.cgs_tier),
-              icon: Shield,
-              color: getCGSTierColor(latestScore.cgs_tier),
-              bg: 'bg-brand-slate-50',
-            },
-            {
-              label: 'Score global',
-              value: `${latestScore.global_score.toFixed(2)}/5`,
-              sub: `CMI™ : ${latestScore.cmi_index}/100`,
-              icon: TrendingUp,
-              color: '#2E7D32',
-              bg: 'bg-brand-green-50',
-            },
-            {
-              label: 'Actions ouvertes',
-              value: openActions.toString(),
-              sub: overdueActions > 0 ? `${overdueActions} en retard` : 'Tout à jour',
-              icon: overdueActions > 0 ? AlertTriangle : CheckCircle,
-              color: overdueActions > 0 ? '#D32F2F' : '#2E7D32',
-              bg: overdueActions > 0 ? 'bg-red-50' : 'bg-brand-green-50',
-            },
-            {
-              label: 'Équivalence CGEF™',
-              value: latestScore.equivalence_applies ? 'Active' : 'Non atteinte',
-              sub: latestScore.equivalence_applies ? 'Couverture 100%' : 'Piliers < 3.0 détectés',
-              icon: FileCheck,
-              color: latestScore.equivalence_applies ? '#2E7D32' : '#F57C00',
-              bg: latestScore.equivalence_applies ? 'bg-brand-green-50' : 'bg-orange-50',
-            },
-          ].map((kpi, i) => (
-            <div key={i} className={`card ${kpi.bg}`}>
-              <div className="card-body">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-brand-slate-500">{kpi.label}</span>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: kpi.color + '20' }}>
-                    <kpi.icon className="w-4 h-4" style={{ color: kpi.color }} />
-                  </div>
+        <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Risk Heatmap</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Likelihood × Impact matrix</p>
+            </div>
+            <button className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" onClick={() => navigate('/risks')}>
+              View all <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="space-y-1 mb-3">
+            <div className="flex items-center gap-1 mb-1.5">
+              <span className="text-xs text-slate-600 w-14 text-right">↑ Impact</span>
+              <div className="flex gap-1 flex-1">{[1,2,3,4,5].map((l) => <span key={l} className="flex-1 text-center text-xs text-slate-600">{l}</span>)}</div>
+            </div>
+            {riskMatrix.map((row, ri) => (
+              <div key={ri} className="flex items-center gap-1">
+                <span className="text-xs text-slate-600 w-14 text-right">{5 - ri}</span>
+                <div className="flex gap-1 flex-1">
+                  {row.map((count, ci) => (
+                    <div key={ci} className={`flex-1 aspect-square rounded flex items-center justify-center text-xs font-bold ${colorMap[riskMatrixColors[ri][ci]]}`}>
+                      {count > 0 ? count : ''}
+                    </div>
+                  ))}
                 </div>
-                <p className="text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</p>
-                <p className="text-sm text-brand-slate-500 mt-0.5">{kpi.sub}</p>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Charts row */}
-      {latestScore && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Radar */}
-          <div className="card">
-            <div className="card-header"><h2 className="font-semibold text-brand-slate-900">Maturité par Pilier CGEF™</h2></div>
-            <div className="card-body">
-              <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#E2E8F0" />
-                  <PolarAngleAxis dataKey="pillar" tick={{ fontSize: 11, fill: '#64748B' }} />
-                  <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fontSize: 10 }} tickCount={6} />
-                  <Radar name="Score" dataKey="score" stroke="#2E7D32" fill="#2E7D32" fillOpacity={0.25} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
+            ))}
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs text-slate-600 w-14" />
+              <div className="flex-1 text-center text-xs text-slate-600">Likelihood →</div>
             </div>
           </div>
-
-          {/* Framework coverage */}
-          <div className="card">
-            <div className="card-header"><h2 className="font-semibold text-brand-slate-900">Couverture Réglementaire (%)</h2></div>
-            <div className="card-body">
-              {latestResponses.length === 0 ? (
-                <div className="flex items-center justify-center h-64 text-brand-slate-400">
-                  Complétez une évaluation pour voir la couverture
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={barData} barSize={32}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-                    <Tooltip formatter={(v) => [`${v}%`, 'Couverture']} />
-                    <Bar dataKey="coverage" radius={[4, 4, 0, 0]} fill="#2E7D32" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="text-center p-2 rounded-lg bg-red-500/10 border border-red-500/15">
+              <p className="text-lg font-bold text-red-400">{criticalRisks.length}</p>
+              <p className="text-xs text-slate-400">Critical</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/15">
+              <p className="text-lg font-bold text-orange-400">{highRisks.length}</p>
+              <p className="text-xs text-slate-400">High</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent assessments */}
-        <div className="card">
-          <div className="card-header flex items-center justify-between">
-            <h2 className="font-semibold text-brand-slate-900">Évaluations récentes</h2>
-            <Link to="/assessments" className="text-sm text-brand-green-600 hover:underline flex items-center gap-1">
-              Voir tout <ArrowRight className="w-3 h-3" />
-            </Link>
+      {/* Compliance trend + Framework readiness */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+        <div className="bg-surface-850 rounded-xl border border-white/8 p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Compliance Readiness Trend</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Jan–May 2026 across key frameworks</p>
+            </div>
+            <button className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" onClick={() => navigate('/compliance')}>
+              Compliance Center <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <div className="card-body divide-y divide-brand-slate-100">
-            {recentAssessments.length === 0 ? (
-              <p className="text-brand-slate-400 text-sm py-4 text-center">Aucune évaluation</p>
-            ) : recentAssessments.slice(0, 4).map(a => (
-              <div key={a.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                <div>
-                  <p className="font-medium text-brand-slate-900 text-sm">{a.name}</p>
-                  <p className="text-xs text-brand-slate-400 mt-0.5">{new Date(a.created_at).toLocaleDateString('fr-FR')}</p>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={mockComplianceTimeline} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <defs>
+                  <linearGradient id="gIso" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
+                  <linearGradient id="gNis2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15}/><stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/></linearGradient>
+                  <linearGradient id="gDora" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#a855f7" stopOpacity={0.15}/><stop offset="95%" stopColor="#a855f7" stopOpacity={0}/></linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} domain={[40, 90]} tickFormatter={(v: number) => `${v}%`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="iso" name="ISO 27001" stroke="#3b82f6" fill="url(#gIso)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="nis2" name="NIS2" stroke="#06b6d4" fill="url(#gNis2)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="dora" name="DORA" stroke="#a855f7" fill="url(#gDora)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="rgpd" name="RGPD" stroke="#22c55e" fill="none" strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-surface-850 rounded-xl border border-white/8 p-5">
+          <h3 className="text-sm font-semibold text-slate-200 mb-4">Framework Readiness</h3>
+          <div className="space-y-3">
+            {[
+              { name: 'ISO 27001', pct: 68, color: '#3b82f6' },
+              { name: 'NIS2', pct: 54, color: '#06b6d4' },
+              { name: 'DORA', pct: 61, color: '#a855f7' },
+              { name: 'RGPD', pct: 82, color: '#22c55e' },
+              { name: 'NIST CSF', pct: 71, color: '#f59e0b' },
+              { name: 'CIS Controls', pct: 75, color: '#6366f1' },
+            ].map((f) => (
+              <div key={f.name}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">{f.name}</span>
+                  <span className="font-medium text-slate-300">{f.pct}%</span>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                  a.status === 'completed' ? 'bg-brand-green-100 text-brand-green-700' :
-                  a.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-brand-slate-100 text-brand-slate-600'
-                }`}>
-                  {a.status === 'completed' ? 'Complété' : a.status === 'in_progress' ? 'En cours' : 'Brouillon'}
-                </span>
+                <div className="w-full h-1.5 bg-white/8 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${f.pct}%`, backgroundColor: f.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="mt-4 w-full btn btn-outline btn-sm" onClick={() => navigate('/compliance')}>
+            Compliance Center
+          </button>
+        </div>
+      </div>
+
+      {/* Critical risks + Priority actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+        <div className="bg-surface-850 rounded-xl border border-white/8 overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Top Critical Risks</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{criticalRisks.length + highRisks.length} risks require attention</p>
+            </div>
+            <button className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" onClick={() => navigate('/risks')}>
+              Risk register <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="divide-y divide-white/5">
+            {mockRisks.slice(0, 5).map((r) => (
+              <div key={r.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/3 transition-colors cursor-pointer">
+                <RiskBadge severity={r.severity} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200 truncate">{r.title}</p>
+                  <p className="text-xs text-slate-500">{r.domain} · {r.owner.split(' ')[0]}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-slate-200">{r.residualScore}</p>
+                  <p className="text-xs text-slate-500">residual</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="card">
-          <div className="card-header flex items-center justify-between">
-            <h2 className="font-semibold text-brand-slate-900">Plans d&apos;action prioritaires</h2>
-            <Link to="/action-plans" className="text-sm text-brand-green-600 hover:underline flex items-center gap-1">
-              Voir tout <ArrowRight className="w-3 h-3" />
-            </Link>
+        <div className="bg-surface-850 rounded-xl border border-white/8 overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Priority Action Plans</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{openActions.length} active · {overdueActions.length} overdue</p>
+            </div>
+            <button className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" onClick={() => navigate('/incidents')}>
+              All actions <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <div className="card-body divide-y divide-brand-slate-100">
-            {actionPlans.length === 0 ? (
-              <p className="text-brand-slate-400 text-sm py-4 text-center">Aucun plan d&apos;action</p>
-            ) : actionPlans.filter(a => a.status !== 'completed').slice(0, 4).map(a => {
-              const today = new Date().toISOString().split('T')[0];
-              const overdue = a.due_date && a.due_date < today;
-              return (
-                <div key={a.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Clock className={`w-4 h-4 flex-shrink-0 ${overdue ? 'text-red-500' : 'text-brand-slate-400'}`} />
-                    <div className="min-w-0">
-                      <p className="font-medium text-brand-slate-900 text-sm truncate">{a.title}</p>
-                      {a.due_date && <p className={`text-xs mt-0.5 ${overdue ? 'text-red-500 font-medium' : 'text-brand-slate-400'}`}>
-                        {overdue ? 'En retard — ' : ''}{new Date(a.due_date).toLocaleDateString('fr-FR')}
-                      </p>}
-                    </div>
+          <div className="divide-y divide-white/5">
+            {mockActionPlans.filter((a) => a.status !== 'done').slice(0, 5).map((a) => (
+              <div key={a.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/3 transition-colors cursor-pointer">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <StatusBadge status={a.priority} size="sm" />
+                    <p className="text-sm font-medium text-slate-200 truncate">{a.title}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                    a.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                    a.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                    a.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {a.priority === 'critical' ? 'Critique' : a.priority === 'high' ? 'Haute' : a.priority === 'medium' ? 'Moyenne' : 'Basse'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1 bg-white/8 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-brand-500" style={{ width: `${a.progress}%` }} />
+                    </div>
+                    <span className="text-xs text-slate-500 flex-shrink-0">{a.progress}%</span>
+                  </div>
                 </div>
-              );
-            })}
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-slate-500">{new Date(a.dueDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</p>
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
+      </div>
+
+      {/* Board summary */}
+      <div className="bg-gradient-to-r from-brand-950/80 to-surface-850 rounded-xl border border-brand-500/20 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-5 h-5 rounded bg-brand-500/20 flex items-center justify-center">
+                <FileText className="w-3 h-3 text-brand-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-200">Board-Ready Summary</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+              Cyber maturity is progressing at <span className="text-slate-200 font-medium">3.2/5</span> with a target of 4.0 by Q4 2026.
+              Top regulatory exposure: <span className="text-slate-200 font-medium">NIS2 (54%)</span> and <span className="text-slate-200 font-medium">DORA (61%)</span> — deadlines October 2026 and January 2027.
+              <span className="text-red-400 font-medium"> 7 critical risks</span> are open including ransomware and third-party breach vectors.
+              <span className="text-amber-400 font-medium"> 3 strategic programs</span> on track: PAM deployment, DORA ICT Resilience, and ISO 27001 recertification.
+              Recommended board decision: approve €1.2M cyber investment roadmap for 2026–2027.
+            </p>
+          </div>
+          <button className="btn btn-secondary btn-sm flex-shrink-0" onClick={() => navigate('/reporting')}>
+            Generate Report
+          </button>
         </div>
       </div>
     </div>
