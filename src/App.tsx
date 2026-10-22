@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/auth';
+import { isSupabaseConfigured } from './lib/supabase';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
@@ -37,6 +38,23 @@ function Spinner() {
   );
 }
 
+function SetupRequired() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-surface-950 p-6">
+      <div className="max-w-lg w-full bg-surface-850 border border-white/8 rounded-xl p-6">
+        <h1 className="text-lg font-semibold text-slate-100 mb-2">Supabase is not configured</h1>
+        <p className="text-sm text-slate-400 mb-4">
+          Create a <code className="text-brand-400">.env</code> file at the project root (copy <code className="text-brand-400">.env.example</code>)
+          and fill in your Supabase project URL and anon key, then restart <code className="text-brand-400">npm run dev</code>.
+        </p>
+        <pre className="text-xs bg-black/30 border border-white/8 rounded-lg p-3 text-slate-300 overflow-x-auto">{`VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOi...`}</pre>
+        <p className="text-xs text-slate-500 mt-4">Step-by-step instructions: see SUPABASE_SETUP.md in the project folder.</p>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, initialized, loading } = useAuthStore();
   if (!initialized || loading) return <Spinner />;
@@ -62,7 +80,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { initialize, initialized } = useAuthStore();
-  useEffect(() => { if (!initialized) initialize(); }, [initialize, initialized]);
+  useEffect(() => { if (isSupabaseConfigured && !initialized) initialize(); }, [initialize, initialized]);
+
+  if (!isSupabaseConfigured) return <SetupRequired />;
 
   return (
     <ErrorBoundary>

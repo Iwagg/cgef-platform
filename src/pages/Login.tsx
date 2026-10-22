@@ -55,10 +55,10 @@ export function Login() {
           </div>
         </div>
         <div className="bg-white/4 border border-white/8 rounded-xl p-4">
-          <p className="text-xs text-slate-400 leading-relaxed italic mb-2">
-            "CGEF Platform reduced our ISO 27001 audit preparation time by 60% and gave our board real-time visibility into our cyber posture."
+          <p className="text-xs text-slate-400 leading-relaxed mb-2">
+            CGEF™ framework: 8 governance pillars, maturity scored from 1 to 5, mapped to ISO 27001, NIS2, DORA and RGPD.
           </p>
-          <p className="text-xs font-medium text-slate-300">Alexandre D. · CISO, Nexus Finance Group</p>
+          <p className="text-xs font-medium text-slate-300">Horizons Gov Advisors</p>
         </div>
       </div>
 

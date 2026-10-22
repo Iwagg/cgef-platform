@@ -111,7 +111,9 @@ BEGIN
   IF COALESCE(trim(p_name), '') = '' THEN RAISE EXCEPTION 'Nom d''organisation requis'; END IF;
 
   INSERT INTO public.organizations (name, sector, country)
-  VALUES (trim(p_name), NULLIF(p_sector, ''), COALESCE(NULLIF(upper(p_country), ''), 'FR'))
+  -- country est CHAR(2) : « OTHER » ou une valeur invalide devient NULL
+  VALUES (trim(p_name), NULLIF(p_sector, ''),
+          CASE WHEN length(trim(COALESCE(p_country, ''))) = 2 THEN upper(trim(p_country)) END)
   RETURNING * INTO v_org;
 
   PERFORM set_config('cgef.privileged', 'on', true);

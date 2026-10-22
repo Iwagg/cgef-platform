@@ -1,20 +1,7 @@
 import { useState } from 'react';
 import { Shield, Building2, Users, ArrowRight, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
-
-const SECTORS = [
-  'Finance & Banking', 'Insurance', 'Healthcare', 'Energy & Utilities',
-  'Transportation', 'Telecommunications', 'Manufacturing', 'Retail & Distribution',
-  'Professional Services', 'Public Sector', 'Technology', 'Other',
-];
-
-const COUNTRIES = [
-  { code: 'FR', name: 'France' }, { code: 'DE', name: 'Germany' },
-  { code: 'IT', name: 'Italy' }, { code: 'ES', name: 'Spain' },
-  { code: 'BE', name: 'Belgium' }, { code: 'NL', name: 'Netherlands' },
-  { code: 'LU', name: 'Luxembourg' }, { code: 'CH', name: 'Switzerland' },
-  { code: 'GB', name: 'United Kingdom' }, { code: 'OTHER', name: 'Other' },
-];
+import { SECTORS, COUNTRIES } from '../lib/constants';
 
 type Mode = 'choice' | 'create' | 'join';
 

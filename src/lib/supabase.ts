@@ -3,23 +3,24 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    '[CGEF] Variables d\'environnement Supabase manquantes.\n' +
-    'Créez un fichier .env avec VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.\n' +
-    'Consultez .env.example pour référence.'
-  );
-}
+// When the .env is missing, App renders a setup screen instead of crashing on import
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('your-project')
+);
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
+  isSupabaseConfigured ? supabaseAnonKey : 'placeholder',
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
 
-// Helper: log audit event
+// Helper: log audit event (organization_id is filled in by a database trigger)
 export async function logAudit(
   action: string,
   resourceType: string,
@@ -36,3 +37,6 @@ export async function logAudit(
     metadata: metadata || {},
   }).then(() => {});
 }
+
+// Evidence files live in the private "evidence" bucket under <organization_id>/
+export const EVIDENCE_BUCKET = 'evidence';

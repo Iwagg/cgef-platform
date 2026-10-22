@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import type { Profile, Organization, UserRole } from '../lib/types';
+import type { Profile, Organization } from '../lib/types';
 
 interface AuthState {
   user: User | null;
@@ -13,7 +13,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: { full_name?: string; role?: UserRole }) => Promise<void>;
+  // Role changes go through the set_member_role RPC (see Settings > Team)
+  updateProfile: (data: { full_name?: string; notification_prefs?: Record<string, boolean> }) => Promise<void>;
   updateOrganization: (data: Partial<Organization>) => Promise<void>;
   createOrganization: (name: string, sector: string, country: string) => Promise<void>;
   joinOrganization: (orgId: string) => Promise<void>;
@@ -132,20 +133,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) throw new Error('Non authentifié');
 
-    // Create org
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert({ name, sector, country, updated_at: new Date().toISOString() })
-      .select()
-      .single();
-    if (orgError) throw orgError;
-
-    // Link profile to org
-    const { error: profError } = await supabase
-      .from('profiles')
-      .update({ organization_id: org.id, role: 'admin', updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-    if (profError) throw profError;
+    // RPC: creates the org and makes the caller its admin in one transaction
+    const { data: org, error } = await supabase
+      .rpc('create_organization', { p_name: name, p_sector: sector, p_country: country })
+      .single<Organization>();
+    if (error) throw error;
 
     const { profile } = get();
     set({
@@ -158,18 +150,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) throw new Error('Non authentifié');
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations').select('*').eq('id', orgId).single();
-    if (orgError) throw new Error('Organisation introuvable');
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ organization_id: orgId, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
+    if (!/^[0-9a-f-]{36}$/i.test(orgId)) throw new Error('Invalid organisation ID');
+    const { data: org, error } = await supabase
+      .rpc('join_organization', { p_org_id: orgId })
+      .single<Organization>();
     if (error) throw error;
 
     const { profile } = get();
-    set({ organization: org, profile: profile ? { ...profile, organization_id: orgId } : null });
+    set({ organization: org, profile: profile ? { ...profile, organization_id: orgId, role: 'analyst' } : null });
   },
 
   changePassword: async (newPassword) => {

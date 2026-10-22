@@ -3,16 +3,18 @@ export type AssessmentStatus = 'draft' | 'in_progress' | 'completed';
 export type CGSTier = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B';
 export type PillarId = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8';
 export type ActionPriority = 'critical' | 'high' | 'medium' | 'low';
-export type ActionStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
+export type ActionStatus = 'todo' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
 
 export interface Organization {
   id: string;
   name: string;
   sector?: string;
+  size?: string;
   employee_count?: number;
   country?: string;
   nis2_entity_type?: string;
   is_oiv?: boolean;
+  target_maturity?: number;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +26,7 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   mfa_enabled: boolean;
+  notification_prefs?: Record<string, boolean>;
   created_at: string;
   updated_at: string;
 }
