@@ -36,25 +36,34 @@ export function useOrgTable<T extends { id: string }>(table: string, { orderBy =
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    if (!organizationId) return;
-    setLoading(true);
+  const fetchRows = useCallback(async () => {
     const { data, error } = await supabase
       .from(table)
       .select('*')
       .eq('organization_id', organizationId)
       .order(orderBy, { ascending });
-    if (error) {
-      setError(error.message);
-      toast({ type: 'error', title: 'Could not load data', message: error.message });
-    } else {
-      setError(null);
-      setRows((data ?? []) as T[]);
-    }
-    setLoading(false);
+    if (error) toast({ type: 'error', title: 'Could not load data', message: error.message });
+    return { data: (data ?? []) as T[], error: error?.message ?? null };
   }, [table, organizationId, orderBy, ascending]);
 
-  useEffect(() => { reload(); }, [reload]);
+  const apply = useCallback((result: { data: T[]; error: string | null }) => {
+    setError(result.error);
+    if (!result.error) setRows(result.data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+    fetchRows().then((result) => { if (!cancelled) apply(result); });
+    return () => { cancelled = true; };
+  }, [organizationId, fetchRows, apply]);
+
+  const reload = useCallback(async () => {
+    if (!organizationId) return;
+    setLoading(true);
+    apply(await fetchRows());
+  }, [organizationId, fetchRows, apply]);
 
   const create = useCallback(async (values: Partial<T>): Promise<T> => {
     const { data, error } = await supabase

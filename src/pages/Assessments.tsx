@@ -7,6 +7,8 @@ import { FRAMEWORKS } from '../lib/cgef-framework';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import type { Assessment } from '../lib/types';
+import { toast } from '../components/ui/Toast';
+import { errorMessage } from '../hooks/useOrgTable';
 
 export function Assessments() {
   const navigate = useNavigate();
@@ -19,17 +21,19 @@ export function Assessments() {
   const [creating, setCreating] = useState(false);
   const [newAssessment, setNewAssessment] = useState({ name: '', scope: '', frameworks: ['iso27001', 'nis2'] });
 
-  useEffect(() => { fetchAssessments(); }, [organization?.id]);
-
-  async function fetchAssessments() {
-    if (!organization?.id) { setLoading(false); return; }
-    try {
-      const { data, error } = await supabase.from('assessments').select('*').eq('organization_id', organization.id).order('created_at', { ascending: false });
-      if (error) throw error;
-      setAssessments(data || []);
-    } catch (error) { console.error('Error fetching assessments:', error); }
-    finally { setLoading(false); }
-  }
+  const organizationId = organization?.id;
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+    supabase.from('assessments').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) toast({ type: 'error', title: 'Could not load assessments', message: error.message });
+        setAssessments(data || []);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [organizationId]);
 
   async function createAssessment() {
     if (!organization?.id || !user?.id) return;
@@ -43,16 +47,15 @@ export function Assessments() {
       setShowCreateModal(false);
       setNewAssessment({ name: '', scope: '', frameworks: ['iso27001', 'nis2'] });
       navigate(`/assessments/${data.id}/evaluate`);
-    } catch (error) { console.error('Error creating assessment:', error); }
+    } catch (error) { toast({ type: 'error', title: 'Could not create assessment', message: errorMessage(error) }); }
     finally { setCreating(false); }
   }
 
   async function deleteAssessment(id: string) {
     if (!confirm('Delete this assessment?')) return;
-    try {
-      await supabase.from('assessments').delete().eq('id', id);
-      setAssessments(assessments.filter((a) => a.id !== id));
-    } catch (error) { console.error('Error deleting assessment:', error); }
+    const { error } = await supabase.from('assessments').delete().eq('id', id);
+    if (error) { toast({ type: 'error', title: 'Could not delete assessment', message: error.message }); return; }
+    setAssessments((prev) => prev.filter((a) => a.id !== id));
   }
 
   const filteredAssessments = assessments.filter((a) =>

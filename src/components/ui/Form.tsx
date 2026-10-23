@@ -1,7 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Trash2, Inbox } from 'lucide-react';
-import { toast } from './Toast';
-import { errorMessage } from '../../hooks/useOrgTable';
+import { useAction } from '../../hooks/useAction';
 
 export function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
@@ -10,25 +9,6 @@ export function Field({ label, children, className = '' }: { label: string; chil
       {children}
     </div>
   );
-}
-
-/** Wraps an async action with a pending flag and success/error toasts. */
-export function useAction() {
-  const [pending, setPending] = useState(false);
-  const run = async (fn: () => Promise<unknown>, successTitle?: string): Promise<boolean> => {
-    setPending(true);
-    try {
-      await fn();
-      if (successTitle) toast({ type: 'success', title: successTitle });
-      return true;
-    } catch (err) {
-      toast({ type: 'error', title: 'Action failed', message: errorMessage(err) });
-      return false;
-    } finally {
-      setPending(false);
-    }
-  };
-  return { pending, run };
 }
 
 export function SubmitButton({ pending, children, onClick, variant = 'btn-primary', disabled }: {

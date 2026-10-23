@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CircleMinus as MinusCircle, Plus, Download, Settings as SettingsIcon } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { MetricCard } from '../components/ui/MetricCard';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { Modal } from '../components/ui/Modal';
-import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState, useAction } from '../components/ui/Form';
+import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState } from '../components/ui/Form';
+import { useAction } from '../hooks/useAction';
 import { useOrgTable } from '../hooks/useOrgTable';
 import type { ComplianceRequirement, OrgFramework, RequirementStatus } from '../lib/db-types';
 import { REQUIREMENT_TEMPLATES } from '../lib/compliance-templates';
@@ -45,14 +46,12 @@ export function ComplianceCenter() {
   const { pending, run } = useAction();
 
   const active = frameworks.rows.filter((f) => f.is_active);
-  useEffect(() => {
-    if (!activeFramework && active.length) setActiveFramework(active[0].framework);
-  }, [active, activeFramework]);
+  const selectedFramework = activeFramework ?? active[0]?.framework ?? null;
 
   const stats = active.map((f) => ({ ...frameworkStats(reqs.rows, f.framework), settings: f }));
-  const current = stats.find((s) => s.framework === activeFramework) ?? null;
+  const current = stats.find((s) => s.framework === selectedFramework) ?? null;
   const requirements = reqs.rows
-    .filter((r) => r.framework === activeFramework)
+    .filter((r) => r.framework === selectedFramework)
     .filter((r) => statusFilter === 'all' || r.status === statusFilter);
   const tracked = stats.filter((s) => s.total > 0);
   const avgCompliance = tracked.length ? Math.round(tracked.reduce((s, f) => s + f.percentage, 0) / tracked.length) : 0;
@@ -123,7 +122,7 @@ export function ComplianceCenter() {
               <button
                 key={f.framework}
                 onClick={() => setActiveFramework(f.framework)}
-                className={`p-4 rounded-xl border text-left transition-all duration-150 ${activeFramework === f.framework ? 'bg-brand-500/15 border-brand-500/30 shadow-glow' : 'bg-surface-850 border-white/8 hover:border-white/15 hover:bg-surface-800'}`}
+                className={`p-4 rounded-xl border text-left transition-all duration-150 ${selectedFramework === f.framework ? 'bg-brand-500/15 border-brand-500/30 shadow-glow' : 'bg-surface-850 border-white/8 hover:border-white/15 hover:bg-surface-800'}`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <span className="text-xs font-bold text-slate-200">{f.framework}</span>

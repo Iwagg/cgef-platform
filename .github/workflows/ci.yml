@@ -20,7 +20,7 @@ jobs:
       - name: TypeScript Check
         run: npm run type-check
       - name: Lint
-        run: npm run lint || echo "Lint warnings (non-blocking for now)"
+        run: npm run lint
 
   build:
     name: Build

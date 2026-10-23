@@ -4,7 +4,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { MetricCard } from '../components/ui/MetricCard';
 import { StatusBadge, FrameworkBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
-import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState, DetailGrid, useAction } from '../components/ui/Form';
+import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState, DetailGrid } from '../components/ui/Form';
+import { useAction } from '../hooks/useAction';
 import { useOrgTable } from '../hooks/useOrgTable';
 import { useAuthStore } from '../stores/auth';
 import { supabase, EVIDENCE_BUCKET } from '../lib/supabase';
@@ -85,7 +86,7 @@ export function AuditEvidence() {
     if (!organization) throw new Error('No organisation');
     let values: Partial<Evidence> = { ...form };
     if (file) {
-      const path = `${organization.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]+/g, '_')}`;
+      const path = `${organization.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]+/g, '_')}`;
       const { error } = await supabase.storage.from(EVIDENCE_BUCKET).upload(path, file, { contentType: file.type || undefined });
       if (error) throw error;
       if (form.file_path) await supabase.storage.from(EVIDENCE_BUCKET).remove([form.file_path]);

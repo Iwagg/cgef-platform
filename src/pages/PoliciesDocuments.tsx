@@ -4,13 +4,14 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { MetricCard } from '../components/ui/MetricCard';
 import { StatusBadge, FrameworkBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
-import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState, DetailGrid, useAction } from '../components/ui/Form';
+import { Field, SubmitButton, DeleteButton, EmptyState, LoadingState, DetailGrid } from '../components/ui/Form';
+import { useAction } from '../hooks/useAction';
 import { useOrgTable } from '../hooks/useOrgTable';
 import { useAuthStore } from '../stores/auth';
 import { hasRole } from '../lib/rbac';
 import type { PolicyDocument } from '../lib/db-types';
 import { FRAMEWORKS } from '../lib/db-types';
-import { fmtDate, firstName, isOverdue, today } from '../lib/format';
+import { fmtDate, firstName, isOverdue, isDueWithin, today } from '../lib/format';
 
 const TEMPLATES: { label: string; framework: string; title: string; content: string }[] = [
   { label: 'Information Security Policy (ISO 27001)', framework: 'ISO 27001', title: 'Information Security Policy',
@@ -146,7 +147,7 @@ export function PoliciesDocuments() {
                 {p.next_review && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Next review</span>
-                    <span className={new Date(p.next_review) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-amber-400' : 'text-slate-300'}>{fmtDate(p.next_review)}</span>
+                    <span className={isDueWithin(p.next_review, 30) ? 'text-amber-400' : 'text-slate-300'}>{fmtDate(p.next_review)}</span>
                   </div>
                 )}
               </div>

@@ -33,6 +33,11 @@ export function isOverdue(date: string | null | undefined): boolean {
   return new Date(date) < new Date(new Date().toDateString());
 }
 
+export function isDueWithin(date: string | null | undefined, days: number): boolean {
+  if (!date) return false;
+  return new Date(date).getTime() < Date.now() + days * 24 * 60 * 60 * 1000;
+}
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }

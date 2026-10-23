@@ -4,7 +4,8 @@ import { User, Building2, Bell, Shield, Save, Users, Copy, UserMinus } from 'luc
 import { useAuthStore } from '../stores/auth';
 import { PageHeader } from '../components/ui/PageHeader';
 import { toast } from '../components/ui/Toast';
-import { Field, SubmitButton, LoadingState, useAction } from '../components/ui/Form';
+import { Field, SubmitButton, LoadingState } from '../components/ui/Form';
+import { useAction } from '../hooks/useAction';
 import { useOrgTable } from '../hooks/useOrgTable';
 import { supabase } from '../lib/supabase';
 import { hasRole } from '../lib/rbac';
@@ -127,12 +128,17 @@ function TeamTab() {
   const canManage = hasRole(profile?.role, 'ciso');
   const isAdmin = hasRole(profile?.role, 'admin');
 
-  const load = async () => {
+  const fetchMembers = async (): Promise<OrgMember[]> => {
     const { data, error } = await supabase.rpc('list_org_members');
-    if (error) { toast({ type: 'error', title: 'Could not load team', message: error.message }); setMembers([]); return; }
-    setMembers(data as OrgMember[]);
+    if (error) { toast({ type: 'error', title: 'Could not load team', message: error.message }); return []; }
+    return data as OrgMember[];
   };
-  useEffect(() => { load(); }, []);
+  const load = async () => setMembers(await fetchMembers());
+  useEffect(() => {
+    let cancelled = false;
+    fetchMembers().then((list) => { if (!cancelled) setMembers(list); });
+    return () => { cancelled = true; };
+  }, []);
 
   const changeRole = (m: OrgMember, role: UserRole) => run(async () => {
     const { error } = await supabase.rpc('set_member_role', { p_profile_id: m.id, p_role: role });

@@ -12,6 +12,8 @@ interface Toast {
 
 let toastCallback: ((toast: Omit<Toast, 'id'>) => void) | null = null;
 
+// Imperative API used across the app; keeping it next to its container is intentional
+// eslint-disable-next-line react-refresh/only-export-components
 export function toast(t: Omit<Toast, 'id'>) {
   toastCallback?.(t);
 }

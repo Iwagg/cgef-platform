@@ -35,17 +35,15 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
     i.label.toLowerCase().includes(query.toLowerCase())
   );
 
+  // Mounted only while open, so query/selection start fresh each time
   useEffect(() => {
-    if (open) {
-      setQuery('');
-      setSelected(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelected((s) => Math.min(s + 1, filtered.length - 1)); }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelected((s) => Math.max(s - 1, 0)); }
       if (e.key === 'Enter' && filtered[selected]) {
@@ -219,7 +217,7 @@ export function AppLayout() {
         </main>
       </div>
 
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
+      {commandOpen && <CommandPalette open onClose={() => setCommandOpen(false)} />}
       <ToastContainer />
     </div>
   );
