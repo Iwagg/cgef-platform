@@ -147,7 +147,7 @@ export function RiskRegister() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-b border-white/5 hover:bg-white/3 transition-colors cursor-pointer" onClick={() => setSelectedId(r.id)}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.ref}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{r.ref}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-200 leading-tight">{r.title}</p>
                     {r.asset && <p className="text-xs text-slate-500 mt-0.5 hidden lg:block truncate max-w-xs">{r.asset}</p>}

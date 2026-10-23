@@ -27,8 +27,8 @@ cp .env.example .env
 # Remplir VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY
 
 # 4. Appliquer les migrations Supabase
-# Dans Supabase Dashboard > SQL Editor, exécuter les 6 fichiers de
-# supabase/migrations/ dans l'ordre des noms (20260301… en premier).
+# Dans Supabase Dashboard > SQL Editor, exécuter supabase/setup_all.sql (ou les fichiers de
+# supabase/migrations/ dans l'ordre des noms). En local : npx supabase start
 # Guide pas à pas : SUPABASE_SETUP.md
 
 # 5. Lancer le serveur de développement

@@ -64,7 +64,7 @@ export function Onboarding() {
         <div className="bg-white/4 border border-white/8 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <CheckCircle className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-medium text-emerald-400">Trusted by 200+ security teams</span>
+            <span className="text-xs font-medium text-emerald-400">Frameworks supported</span>
           </div>
           <p className="text-xs text-slate-500">ISO 27001 · NIS2 · DORA · RGPD · NIST CSF · CIS Controls · SOC 2</p>
         </div>

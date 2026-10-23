@@ -131,7 +131,7 @@ export function ControlsLibrary() {
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.id} className="border-b border-white/5 hover:bg-white/3 transition-colors cursor-pointer" onClick={() => setSelectedId(c.id)}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.ref}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{c.ref}</td>
                   <td className="px-4 py-3"><p className="font-medium text-slate-200">{c.title}</p></td>
                   <td className="px-4 py-3 hidden lg:table-cell text-xs text-slate-400">{c.domain ?? '—'}</td>
                   <td className="px-4 py-3"><StatusBadge status={c.status} size="sm" /></td>

@@ -56,25 +56,26 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOi...`}</pre>
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, profile, initialized, loading } = useAuthStore();
+  const { user, profile, initialized, loading, mfaPending } = useAuthStore();
   if (!initialized || loading) return <Spinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || mfaPending) return <Navigate to="/login" replace />;
   if (profile && !profile.organization_id) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
 function OnboardingRoute({ children }: { children: React.ReactNode }) {
-  const { user, profile, initialized, loading } = useAuthStore();
+  const { user, profile, initialized, loading, mfaPending } = useAuthStore();
   if (!initialized || loading) return <Spinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || mfaPending) return <Navigate to="/login" replace />;
   if (profile?.organization_id) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, initialized } = useAuthStore();
+  const { user, initialized, mfaPending } = useAuthStore();
   if (!initialized) return <Spinner />;
-  if (user) return <Navigate to="/" replace />;
+  // A password-only session of an MFA user stays on /login for the code step
+  if (user && !mfaPending) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

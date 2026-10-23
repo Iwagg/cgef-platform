@@ -133,7 +133,7 @@ export function AssetsThirdParties() {
             <tbody>
               {assets.rows.filter((a) => !q || a.name.toLowerCase().includes(q) || a.ref.toLowerCase().includes(q)).map((a) => (
                 <tr key={a.id} className="border-b border-white/5 hover:bg-white/3 transition-colors cursor-pointer" onClick={() => { setEditingId(a.id); setAssetForm(a); }}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.ref}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{a.ref}</td>
                   <td className="px-4 py-3 font-medium text-slate-200">{a.name}</td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs text-slate-400">{a.type}</td>
                   <td className="px-4 py-3">

@@ -71,10 +71,10 @@ export function Register() {
           </div>
         </div>
         <div className="bg-white/4 border border-white/8 rounded-xl p-4">
-          <p className="text-xs text-slate-400 leading-relaxed italic mb-2">
-            "Onboarding took less than a day. Within a week our entire compliance posture was visible to the board."
+          <p className="text-xs text-slate-400 leading-relaxed mb-2">
+            Your data stays in your own Supabase project, isolated per organisation by row-level security.
           </p>
-          <p className="text-xs font-medium text-slate-300">Marie L. · Head of GRC, MedCore Health Systems</p>
+          <p className="text-xs font-medium text-slate-300">Horizons Gov Advisors</p>
         </div>
       </div>
 
@@ -136,7 +136,6 @@ export function Register() {
             <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Sign in</Link>
           </p>
           <div className="mt-8 pt-6 border-t border-white/8 text-center">
-            <p className="text-xs text-slate-600">By registering, you agree to our Terms of Service and Privacy Policy</p>
           </div>
         </div>
       </div>

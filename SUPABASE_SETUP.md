@@ -15,8 +15,8 @@ Ce guide part de zéro : aucun compte, aucune base de données. Comptez environ 
 ## 2. Créer la base de données (migrations)
 
 1. Dans le menu de gauche du projet, ouvrez **SQL Editor**, puis **New query**.
-2. Ouvrez le premier fichier ci-dessous dans un éditeur de texte, copiez **tout** son contenu, collez-le dans l'éditeur SQL et cliquez sur **Run**. Attendez le message `Success`.
-3. Recommencez avec chaque fichier, **dans cet ordre exact** :
+2. **Le plus simple** : ouvrez `supabase/setup_all.sql` (toutes les migrations réunies), copiez **tout** son contenu, collez-le dans l'éditeur SQL et cliquez sur **Run**. Attendez le message `Success`, puis passez au point 4.
+3. Vous pouvez aussi exécuter les fichiers un par un, **dans cet ordre exact** :
 
    | # | Fichier (dossier `supabase/migrations/`) |
    |---|---|
@@ -26,6 +26,7 @@ Ce guide part de zéro : aucun compte, aucune base de données. Comptez environ 
    | 4 | `20260405000000_complete_schema.sql` |
    | 5 | `20260509121548_fix_handle_new_user_execute_permissions.sql` |
    | 6 | `20261022000000_grc_modules.sql` |
+   | 7 | `20261023000000_mfa_enforcement.sql` |
 
    Si une étape affiche une erreur, arrêtez-vous et notez le message : les migrations suivantes dépendent des précédentes.
 
@@ -37,6 +38,8 @@ Dans **Authentication → Sign In / Providers → Email** :
 
 - Pour **tester en local**, vous pouvez désactiver **Confirm email**. Sinon, chaque nouvel utilisateur doit cliquer sur le lien reçu par e-mail avant de pouvoir se connecter.
 - En **production**, laissez la confirmation activée et configurez un serveur SMTP (**Authentication → Emails → SMTP Settings**). L'envoi d'e-mails intégré à Supabase est limité à quelques messages par heure.
+
+Dans **Authentication → Multi-Factor**, vérifiez que **TOTP** (application d'authentification) est activé. C'est le réglage par défaut. Quand un utilisateur active la double authentification, la base refuse ses données tant que le code n'a pas été saisi.
 
 Dans **Authentication → URL Configuration**, mettez **Site URL** à `http://localhost:5173` pendant le développement, puis à l'URL de production une fois l'application déployée.
 
@@ -90,6 +93,32 @@ npm run build
 ```
 
 Le dossier `dist/` contient un site statique, hébergeable sur Netlify, Vercel ou Cloudflare Pages. Sur l'hébergeur, définissez `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`, et configurez une redirection de toutes les routes vers `index.html` (application monopage). Pensez à mettre à jour **Site URL** dans Supabase.
+
+## Développement en local, sans compte Supabase
+
+Avec Docker Desktop installé et démarré :
+
+```bash
+npx supabase start
+```
+
+Supabase tourne alors sur votre PC et applique les migrations automatiquement. Les ports utilisés sont 44321 à 44329, car Windows réserve souvent la plage 543xx. Récupérez l'URL et la clé `anon` avec `npx supabase status`, puis mettez-les dans `.env.local` (fichier ignoré par git) :
+
+```
+VITE_SUPABASE_URL=http://127.0.0.1:44321
+VITE_SUPABASE_ANON_KEY=<ANON_KEY affichée par supabase status>
+```
+
+| Outil local | Adresse |
+|---|---|
+| Supabase Studio (tables, SQL) | <http://127.0.0.1:44323> |
+| Boîte mail de test (inscriptions, mots de passe oubliés) | <http://127.0.0.1:44324> |
+
+- Après une nouvelle migration : `npx supabase migration up`
+- Pour tout remettre à zéro : `npx supabase db reset`
+- Pour arrêter : `npx supabase stop`
+
+Les tests de la base (règles d'accès, RPC, MFA) se lancent sans Docker avec `npm run test:db`. Après avoir ajouté une migration, régénérez `setup_all.sql` avec `npm run db:bundle`.
 
 ## Dépannage
 

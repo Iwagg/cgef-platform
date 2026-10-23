@@ -9,6 +9,9 @@ interface AuthState {
   organization: Organization | null;
   loading: boolean;
   initialized: boolean;
+  // True when the user has a verified MFA factor but the session is still AAL1 (password only)
+  mfaPending: boolean;
+  verifyLoginMFA: (code: string) => Promise<void>;
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -43,12 +46,18 @@ async function loadProfileAndOrg(userId: string) {
   return { profile, organization };
 }
 
+async function isMfaPending() {
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return data?.nextLevel === 'aal2' && data.currentLevel !== 'aal2';
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
   organization: null,
   loading: false,
   initialized: false,
+  mfaPending: false,
 
   initialize: async () => {
     try {
@@ -57,15 +66,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (session?.user) {
         const { profile, organization } = await loadProfileAndOrg(session.user.id);
-        set({ user: session.user, profile, organization });
+        set({ user: session.user, profile, organization, mfaPending: await isMfaPending() });
       }
 
-      supabase.auth.onAuthStateChange(async (event, session) => {
+      // Supabase calls made directly inside this callback deadlock the auth lock,
+      // so the follow-up queries are deferred to the next tick (per supabase-js docs)
+      supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
-          set({ user: null, profile: null, organization: null });
-        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          const { profile, organization } = await loadProfileAndOrg(session.user.id);
-          set({ user: session.user, profile, organization });
+          set({ user: null, profile: null, organization: null, mfaPending: false });
+        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED') && session?.user) {
+          const user = session.user;
+          setTimeout(async () => {
+            const { profile, organization } = await loadProfileAndOrg(user.id);
+            set({ user, profile, organization, mfaPending: await isMfaPending() });
+          }, 0);
         }
       });
     } finally {
@@ -78,9 +92,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      set({ mfaPending: await isMfaPending() });
     } finally {
       set({ loading: false });
     }
+  },
+
+  verifyLoginMFA: async (code) => {
+    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+    if (listError) throw listError;
+    const factor = factors?.totp?.[0];
+    if (!factor) throw new Error('No verified authenticator found');
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    if (error) throw error;
+    set({ mfaPending: false });
   },
 
   signUp: async (email, password, fullName) => {
@@ -175,8 +200,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   verifyMFA: async (code) => {
+    // `totp` only lists verified factors; the one being enrolled is in `all` with status "unverified"
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totpFactor = factors?.totp?.[0];
+    const totpFactor = factors?.all?.find((f) => f.factor_type === 'totp' && f.status === 'unverified') ?? factors?.totp?.[0];
     if (!totpFactor) return false;
 
     const { data: challenge } = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });

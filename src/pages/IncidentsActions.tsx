@@ -196,7 +196,7 @@ export function IncidentsActions() {
             <tbody>
               {incidents.rows.filter((i) => !q || i.title.toLowerCase().includes(q) || i.ref.toLowerCase().includes(q)).map((inc) => (
                 <tr key={inc.id} className="border-b border-white/5 hover:bg-white/3 transition-colors cursor-pointer" onClick={() => setSelectedIncidentId(inc.id)}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{inc.ref}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{inc.ref}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-200">{inc.title}</p>
                     <p className="text-xs text-slate-500">{inc.affected_systems}</p>

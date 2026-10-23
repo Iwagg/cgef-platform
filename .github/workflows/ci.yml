@@ -21,6 +21,8 @@ jobs:
         run: npm run type-check
       - name: Lint
         run: npm run lint
+      - name: Database migrations & RLS tests
+        run: npm run test:db
 
   build:
     name: Build
