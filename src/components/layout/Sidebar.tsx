@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Shield, TriangleAlert as AlertTriangle, SquareCheck as CheckSquare, BookOpen, FileText, Zap, Server, Map, ChartBar as BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, Building2, FlaskConical, Bell } from 'lucide-react';
+import { LayoutDashboard, Shield, TriangleAlert as AlertTriangle, SquareCheck as CheckSquare, BookOpen, FileText, Zap, Server, Map, ChartBar as BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, Building2, FlaskConical, Bell, ClipboardList } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 
 const navigation = [
@@ -8,6 +8,7 @@ const navigation = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
   ]},
   { group: 'Security', items: [
+    { label: 'Assessments', icon: ClipboardList, href: '/assessments' },
     { label: 'Cyber Maturity', icon: Shield, href: '/maturity' },
     { label: 'Risk Register', icon: AlertTriangle, href: '/risks' },
     { label: 'Controls Library', icon: CheckSquare, href: '/controls' },

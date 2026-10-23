@@ -43,6 +43,11 @@ const statusMap: Record<string, { label: string; className: string }> = {
   // Project
   planning: { label: 'Planning', className: 'bg-slate-500/15 text-slate-400 border border-slate-500/20' },
   active: { label: 'Active', className: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+  on_hold: { label: 'On Hold', className: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
+  completed: { label: 'Completed', className: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' },
+  cancelled: { label: 'Cancelled', className: 'bg-slate-500/15 text-slate-500 border border-slate-500/20' },
+  prospect: { label: 'Prospect', className: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' },
+  inactive: { label: 'Inactive', className: 'bg-slate-500/15 text-slate-500 border border-slate-500/20' },
   // Generic
   high: { label: 'High', className: 'bg-red-500/15 text-red-400 border border-red-500/20' },
   medium: { label: 'Medium', className: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },

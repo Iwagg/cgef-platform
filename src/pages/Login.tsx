@@ -2,24 +2,53 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Eye, EyeOff, CircleAlert as AlertCircle, ArrowRight, CircleCheck as CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
+import { supabase } from '../lib/supabase';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [authError, setAuthError] = useState('');
-  const { signIn, loading } = useAuthStore();
+  const [resetSent, setResetSent] = useState(false);
+  const { signIn, signOut, verifyLoginMFA, loading, user, mfaPending } = useAuthStore();
+  const [mfaCode, setMfaCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const navigate = useNavigate();
+  const needsMfa = !!user && mfaPending;
+
+  const handleMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setVerifying(true);
+    try {
+      await verifyLoginMFA(mfaCode.trim());
+      navigate('/');
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : 'Invalid code');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
     try {
       await signIn(email, password);
-      navigate('/');
+      if (!useAuthStore.getState().mfaPending) navigate('/');
     } catch (err: unknown) {
       setAuthError(err instanceof Error ? err.message : 'Invalid email or password');
     }
+  };
+
+  // The emailed link signs the user in and lands on Settings → Security to set a new password
+  const handleForgot = async () => {
+    setAuthError('');
+    setResetSent(false);
+    if (!email) { setAuthError('Enter your email address first, then click “Forgot password?”.'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/settings?tab=security` });
+    if (error) setAuthError(error.message);
+    else setResetSent(true);
   };
 
   return (
@@ -55,10 +84,10 @@ export function Login() {
           </div>
         </div>
         <div className="bg-white/4 border border-white/8 rounded-xl p-4">
-          <p className="text-xs text-slate-400 leading-relaxed italic mb-2">
-            "CGEF Platform reduced our ISO 27001 audit preparation time by 60% and gave our board real-time visibility into our cyber posture."
+          <p className="text-xs text-slate-400 leading-relaxed mb-2">
+            CGEF™ framework: 8 governance pillars, maturity scored from 1 to 5, mapped to ISO 27001, NIS2, DORA and RGPD.
           </p>
-          <p className="text-xs font-medium text-slate-300">Alexandre D. · CISO, Nexus Finance Group</p>
+          <p className="text-xs font-medium text-slate-300">Horizons Gov Advisors</p>
         </div>
       </div>
 
@@ -78,11 +107,34 @@ export function Login() {
             <p className="text-sm text-slate-400">Welcome back — your security dashboard is ready.</p>
           </div>
 
+          {needsMfa ? (
+            <form onSubmit={handleMfa} className="space-y-4">
+              <p className="text-sm text-slate-300">Two-factor authentication is enabled. Enter the 6-digit code from your authenticator app.</p>
+              {authError && (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {authError}
+                </div>
+              )}
+              <input className="input tracking-widest text-center text-lg" inputMode="numeric" maxLength={6} autoComplete="one-time-code" autoFocus
+                placeholder="000000" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))} />
+              <button type="submit" disabled={verifying || mfaCode.length !== 6} className="btn btn-primary w-full gap-2">
+                {verifying ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Verify <ArrowRight className="w-4 h-4" /></>}
+              </button>
+              <button type="button" className="w-full text-xs text-slate-500 hover:text-slate-300" onClick={() => { setMfaCode(''); signOut(); }}>Use another account</button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {authError && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {authError}
+              </div>
+            )}
+            {resetSent && (
+              <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-sm text-emerald-400">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                If an account exists for this address, a reset link has been sent.
               </div>
             )}
 
@@ -102,7 +154,7 @@ export function Login() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="label mb-0">Password</label>
-                <a href="#" className="text-xs text-brand-400 hover:text-brand-300 transition-colors">Forgot password?</a>
+                <button type="button" onClick={handleForgot} className="text-xs text-brand-400 hover:text-brand-300 transition-colors">Forgot password?</button>
               </div>
               <div className="relative">
                 <input
@@ -136,6 +188,7 @@ export function Login() {
               )}
             </button>
           </form>
+          )}
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Don't have an account?{' '}
@@ -144,9 +197,6 @@ export function Login() {
             </Link>
           </p>
 
-          <div className="mt-8 pt-6 border-t border-white/8 text-center">
-            <p className="text-xs text-slate-600">Enterprise SSO available — contact your IT administrator</p>
-          </div>
         </div>
       </div>
     </div>

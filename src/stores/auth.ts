@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-import type { Profile, Organization, UserRole } from '../lib/types';
+import type { Profile, Organization } from '../lib/types';
 
 interface AuthState {
   user: User | null;
@@ -9,11 +9,15 @@ interface AuthState {
   organization: Organization | null;
   loading: boolean;
   initialized: boolean;
+  // True when the user has a verified MFA factor but the session is still AAL1 (password only)
+  mfaPending: boolean;
+  verifyLoginMFA: (code: string) => Promise<void>;
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: { full_name?: string; role?: UserRole }) => Promise<void>;
+  // Role changes go through the set_member_role RPC (see Settings > Team)
+  updateProfile: (data: { full_name?: string; notification_prefs?: Record<string, boolean> }) => Promise<void>;
   updateOrganization: (data: Partial<Organization>) => Promise<void>;
   createOrganization: (name: string, sector: string, country: string) => Promise<void>;
   joinOrganization: (orgId: string) => Promise<void>;
@@ -42,12 +46,18 @@ async function loadProfileAndOrg(userId: string) {
   return { profile, organization };
 }
 
+async function isMfaPending() {
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return data?.nextLevel === 'aal2' && data.currentLevel !== 'aal2';
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
   organization: null,
   loading: false,
   initialized: false,
+  mfaPending: false,
 
   initialize: async () => {
     try {
@@ -56,15 +66,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (session?.user) {
         const { profile, organization } = await loadProfileAndOrg(session.user.id);
-        set({ user: session.user, profile, organization });
+        set({ user: session.user, profile, organization, mfaPending: await isMfaPending() });
       }
 
-      supabase.auth.onAuthStateChange(async (event, session) => {
+      // Supabase calls made directly inside this callback deadlock the auth lock,
+      // so the follow-up queries are deferred to the next tick (per supabase-js docs)
+      supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
-          set({ user: null, profile: null, organization: null });
-        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          const { profile, organization } = await loadProfileAndOrg(session.user.id);
-          set({ user: session.user, profile, organization });
+          set({ user: null, profile: null, organization: null, mfaPending: false });
+        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED') && session?.user) {
+          const user = session.user;
+          setTimeout(async () => {
+            const { profile, organization } = await loadProfileAndOrg(user.id);
+            set({ user, profile, organization, mfaPending: await isMfaPending() });
+          }, 0);
         }
       });
     } finally {
@@ -77,9 +92,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      set({ mfaPending: await isMfaPending() });
     } finally {
       set({ loading: false });
     }
+  },
+
+  verifyLoginMFA: async (code) => {
+    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+    if (listError) throw listError;
+    const factor = factors?.totp?.[0];
+    if (!factor) throw new Error('No verified authenticator found');
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    if (error) throw error;
+    set({ mfaPending: false });
   },
 
   signUp: async (email, password, fullName) => {
@@ -132,20 +158,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) throw new Error('Non authentifié');
 
-    // Create org
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert({ name, sector, country, updated_at: new Date().toISOString() })
-      .select()
-      .single();
-    if (orgError) throw orgError;
-
-    // Link profile to org
-    const { error: profError } = await supabase
-      .from('profiles')
-      .update({ organization_id: org.id, role: 'admin', updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-    if (profError) throw profError;
+    // RPC: creates the org and makes the caller its admin in one transaction
+    const { data: org, error } = await supabase
+      .rpc('create_organization', { p_name: name, p_sector: sector, p_country: country })
+      .single<Organization>();
+    if (error) throw error;
 
     const { profile } = get();
     set({
@@ -158,18 +175,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) throw new Error('Non authentifié');
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations').select('*').eq('id', orgId).single();
-    if (orgError) throw new Error('Organisation introuvable');
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ organization_id: orgId, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
+    if (!/^[0-9a-f-]{36}$/i.test(orgId)) throw new Error('Invalid organisation ID');
+    const { data: org, error } = await supabase
+      .rpc('join_organization', { p_org_id: orgId })
+      .single<Organization>();
     if (error) throw error;
 
     const { profile } = get();
-    set({ organization: org, profile: profile ? { ...profile, organization_id: orgId } : null });
+    set({ organization: org, profile: profile ? { ...profile, organization_id: orgId, role: 'analyst' } : null });
   },
 
   changePassword: async (newPassword) => {
@@ -187,8 +200,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   verifyMFA: async (code) => {
+    // `totp` only lists verified factors; the one being enrolled is in `all` with status "unverified"
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totpFactor = factors?.totp?.[0];
+    const totpFactor = factors?.all?.find((f) => f.factor_type === 'totp' && f.status === 'unverified') ?? factors?.totp?.[0];
     if (!totpFactor) return false;
 
     const { data: challenge } = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });

@@ -27,10 +27,9 @@ cp .env.example .env
 # Remplir VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY
 
 # 4. Appliquer les migrations Supabase
-# Dans Supabase Dashboard > SQL Editor, exécuter les migrations dans l'ordre :
-# supabase/migrations/20260328...sql
-# supabase/migrations/20260404...sql
-# supabase/migrations/20260405000000_complete_schema.sql  ← NOUVEAU
+# Dans Supabase Dashboard > SQL Editor, exécuter supabase/setup_all.sql (ou les fichiers de
+# supabase/migrations/ dans l'ordre des noms). En local : npx supabase start
+# Guide pas à pas : SUPABASE_SETUP.md
 
 # 5. Lancer le serveur de développement
 npm run dev
@@ -57,8 +56,21 @@ src/
 │   ├── rbac             # Matrice de permissions
 │   ├── supabase         # Client + helper audit
 │   └── types            # Types TypeScript partagés
+├── hooks/
+│   ├── useOrgTable      # CRUD générique sur les tables d'une organisation
+│   └── useAssessmentHistory # Évaluations terminées + scores
 ├── pages/
 │   ├── Dashboard        # Vue d'ensemble (données réelles)
+│   ├── RiskRegister     # Registre des risques
+│   ├── ControlsLibrary  # Contrôles et correspondance référentiels
+│   ├── IncidentsActions # Incidents + Kanban des plans d'action
+│   ├── AuditEvidence    # Preuves (Supabase Storage, bucket « evidence »)
+│   ├── PoliciesDocuments # Politiques, modèles, approbation
+│   ├── AssetsThirdParties # Actifs et fournisseurs (DORA / TPRM)
+│   ├── RoadmapProjects  # Initiatives, budget, impact maturité
+│   ├── ComplianceCenter # Exigences par référentiel, export CSV
+│   ├── CyberMaturity    # Maturité par pilier (dernière évaluation)
+│   ├── ClientsOrganisations # Portefeuille clients (cabinets)
 │   ├── Assessments      # Liste et gestion des évaluations
 │   ├── AssessmentEvaluate # Wizard d'évaluation (autosave 30s)
 │   ├── AssessmentDetail # Résultats et score CGS®

@@ -1,20 +1,7 @@
 import { useState } from 'react';
 import { Shield, Building2, Users, ArrowRight, CircleAlert as AlertCircle, CircleCheck as CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
-
-const SECTORS = [
-  'Finance & Banking', 'Insurance', 'Healthcare', 'Energy & Utilities',
-  'Transportation', 'Telecommunications', 'Manufacturing', 'Retail & Distribution',
-  'Professional Services', 'Public Sector', 'Technology', 'Other',
-];
-
-const COUNTRIES = [
-  { code: 'FR', name: 'France' }, { code: 'DE', name: 'Germany' },
-  { code: 'IT', name: 'Italy' }, { code: 'ES', name: 'Spain' },
-  { code: 'BE', name: 'Belgium' }, { code: 'NL', name: 'Netherlands' },
-  { code: 'LU', name: 'Luxembourg' }, { code: 'CH', name: 'Switzerland' },
-  { code: 'GB', name: 'United Kingdom' }, { code: 'OTHER', name: 'Other' },
-];
+import { SECTORS, COUNTRIES } from '../lib/constants';
 
 type Mode = 'choice' | 'create' | 'join';
 
@@ -77,7 +64,7 @@ export function Onboarding() {
         <div className="bg-white/4 border border-white/8 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <CheckCircle className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-medium text-emerald-400">Trusted by 200+ security teams</span>
+            <span className="text-xs font-medium text-emerald-400">Frameworks supported</span>
           </div>
           <p className="text-xs text-slate-500">ISO 27001 · NIS2 · DORA · RGPD · NIST CSF · CIS Controls · SOC 2</p>
         </div>

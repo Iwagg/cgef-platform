@@ -6,6 +6,8 @@ import { useAuthStore } from '../stores/auth';
 import { PILLARS, getProcessesByPillar, getMaturityColor, getMaturityLabel } from '../lib/cgef-framework';
 import { computeScore } from '../lib/scoring';
 import type { Assessment, AssessmentResponse, PillarId } from '../lib/types';
+import { toast } from '../components/ui/Toast';
+import { errorMessage } from '../hooks/useOrgTable';
 
 export function AssessmentEvaluate() {
   const { id } = useParams<{ id: string }>();
@@ -18,68 +20,86 @@ export function AssessmentEvaluate() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  useEffect(() => { fetchData(); }, [id]);
+  const userId = user?.id;
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => { if (responses.size > 0) saveResponses(); }, 30000);
-    return () => clearInterval(interval);
-  }, [responses]);
-
-  async function fetchData() {
     if (!id) return;
-    try {
-      const [assessmentRes, responsesRes] = await Promise.all([
-        supabase.from('assessments').select('*').eq('id', id).single(),
-        supabase.from('assessment_responses').select('*').eq('assessment_id', id),
-      ]);
+    let cancelled = false;
+    Promise.all([
+      supabase.from('assessments').select('*').eq('id', id).single(),
+      supabase.from('assessment_responses').select('*').eq('assessment_id', id),
+    ]).then(async ([assessmentRes, responsesRes]) => {
+      if (cancelled) return;
+      if (assessmentRes.error) toast({ type: 'error', title: 'Could not load assessment', message: assessmentRes.error.message });
       setAssessment(assessmentRes.data);
-      const responsesMap = new Map<string, AssessmentResponse>();
-      responsesRes.data?.forEach((r) => { responsesMap.set(r.process_id, r); });
-      setResponses(responsesMap);
+      setResponses(new Map((responsesRes.data ?? []).map((r) => [r.process_id, r as AssessmentResponse])));
+      setLoading(false);
       if (assessmentRes.data?.status === 'draft') {
-        await supabase.from('assessments').update({ status: 'in_progress' }).eq('id', id);
+        await supabase.from('assessments').update({ status: 'in_progress', started_at: new Date().toISOString() }).eq('id', id);
       }
-    } catch (error) { console.error('Error fetching data:', error); }
-    finally { setLoading(false); }
-  }
+    });
+    return () => { cancelled = true; };
+  }, [id]);
 
+  // Single batched upsert; throws so callers can surface the error
   const saveResponses = useCallback(async () => {
-    if (!id || !user?.id) return;
+    if (!id || !userId || responses.size === 0) return;
     setSaving(true);
     try {
-      const responsesToSave = Array.from(responses.values()).map((r) => ({
+      const rows = Array.from(responses.values()).map((r) => ({
         assessment_id: id, process_id: r.process_id, pillar_id: r.pillar_id,
         maturity_level: r.maturity_level, evidence: r.evidence || null, notes: r.notes || null,
-        answered_by: user.id, answered_at: new Date().toISOString(),
+        answered_by: userId, answered_at: new Date().toISOString(),
       }));
-      for (const response of responsesToSave) {
-        await supabase.from('assessment_responses').upsert(response, { onConflict: 'assessment_id,process_id' });
-      }
+      const { error } = await supabase.from('assessment_responses').upsert(rows, { onConflict: 'assessment_id,process_id' });
+      if (error) throw error;
       setLastSaved(new Date());
-    } catch (error) { console.error('Error saving responses:', error); }
-    finally { setSaving(false); }
-  }, [id, user?.id, responses]);
+      setDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [id, userId, responses]);
+
+  // Autosave every 30 s when there are unsaved changes
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(() => {
+      saveResponses().catch((err) => toast({ type: 'error', title: 'Autosave failed', message: errorMessage(err) }));
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [dirty, saveResponses]);
 
   const handleResponseChange = (processId: string, field: keyof AssessmentResponse, value: number | string) => {
-    const existing = responses.get(processId) || {
-      id: '', assessment_id: id!, process_id: processId, pillar_id: currentPillar,
-      maturity_level: 0, answered_by: user?.id || '', answered_at: new Date().toISOString(),
-    };
-    setResponses(new Map(responses.set(processId, { ...existing, [field]: value })));
+    setResponses((prev) => {
+      const existing = prev.get(processId) || {
+        id: '', assessment_id: id!, process_id: processId, pillar_id: currentPillar,
+        maturity_level: 0, answered_by: userId || '', answered_at: new Date().toISOString(),
+      };
+      const next = new Map(prev);
+      next.set(processId, { ...existing, [field]: value });
+      return next;
+    });
+    setDirty(true);
   };
 
   const completeAssessment = async () => {
     if (!id) return;
-    await saveResponses();
-    const responseArray = Array.from(responses.values());
-    const scoreResult = computeScore(responseArray);
-    await supabase.from('assessment_scores').insert({
-      assessment_id: id, global_score: scoreResult.globalScore, cgs_tier: scoreResult.cgsTier,
-      cmi_index: scoreResult.cmiIndex, pillar_scores: scoreResult.pillarScores,
-      equivalence_applies: scoreResult.equivalenceApplies,
-    });
-    await supabase.from('assessments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', id);
-    navigate(`/assessments/${id}`);
+    try {
+      await saveResponses();
+      const scoreResult = computeScore(Array.from(responses.values()));
+      const { error: scoreError } = await supabase.from('assessment_scores').insert({
+        assessment_id: id, global_score: scoreResult.globalScore, cgs_tier: scoreResult.cgsTier,
+        cmi_index: scoreResult.cmiIndex, pillar_scores: scoreResult.pillarScores,
+        equivalence_applies: scoreResult.equivalenceApplies,
+      });
+      if (scoreError) throw scoreError;
+      const { error } = await supabase.from('assessments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      navigate(`/assessments/${id}`);
+    } catch (err) {
+      toast({ type: 'error', title: 'Could not complete assessment', message: errorMessage(err) });
+    }
   };
 
   if (loading) {
@@ -158,7 +178,7 @@ export function AssessmentEvaluate() {
             disabled={pillarIndex === 0} className="btn btn-secondary btn-sm">
             <ArrowLeft className="w-3.5 h-3.5" /> Previous
           </button>
-          <button onClick={saveResponses} className="btn btn-outline btn-sm">
+          <button onClick={() => saveResponses().catch((err) => toast({ type: 'error', title: 'Save failed', message: errorMessage(err) }))} className="btn btn-outline btn-sm">
             <Save className="w-3.5 h-3.5" /> Save
           </button>
           {pillarIndex < PILLARS.length - 1 ? (
